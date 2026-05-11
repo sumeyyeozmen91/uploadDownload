@@ -2,88 +2,66 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Sayfa Genişliği ve Başlık
-st.set_page_config(page_title="Hız Testi Karşılaştırma", layout="wide")
+st.set_page_config(page_title="BiP vs WA Karşılaştırma", layout="wide")
 
-st.title("🚀 BiP vs WhatsApp Performans Analizi")
-st.markdown("Aşağıdaki alana CSV dosyalarını yükleyerek karşılaştırmalı raporu oluşturabilirsiniz.")
+st.title("📶 Bağlantı Bazlı Performans Kıyası: BiP vs WhatsApp")
+st.markdown("Sol taraftan 6 dosyanın tamamını yükleyin. Sistem otomatik olarak 3G, 4.5G ve Wifi ayrımı yapacaktır.")
 
-# 1. DOSYA YÜKLEME ALANI
-st.sidebar.header("📂 Dosyaları Yükle")
-uploaded_files = st.sidebar.file_uploader(
-    "CSV dosyalarını buraya sürükleyin (Çoklu seçim yapabilirsiniz)", 
-    type="csv", 
-    accept_multiple_files=True
-)
+# 1. DOSYA YÜKLEME
+st.sidebar.header("📂 Veri Yükleme")
+uploaded_files = st.sidebar.file_uploader("CSV Dosyalarını Seçin", type="csv", accept_multiple_files=True)
 
-def veri_temizle(df, dosya_adi):
-    # Sütun isimlerini standartlaştıralım (ms ifadelerini ve boşlukları temizler)
+def preprocess_data(file):
+    df = pd.read_csv(file, sep=';')
+    # Başlıkları temizle (ms ekini kaldır)
     df.columns = [c.split(' (')[0].strip() for c in df.columns]
     
-    # Dosya adından Uygulama ve Bağlantı türünü çıkaralım
-    adi_dusuk = dosya_adi.lower()
-    uygulama = "BiP" if "bip" in adi_dusuk else "WhatsApp"
-    baglanti = "3G" if "3g" in adi_dusuk else ("4.5G" if "4.5g" in adi_dusuk else "Wi-Fi")
+    fname = file.name.lower()
+    df['Uygulama'] = "BiP" if "bip" in fname else "WhatsApp"
     
-    # Sadece gerekli sütunları alalım
-    df = df[['Test Adı', 'Yükleme Süresi', 'İndirme Süresi']].copy()
-    df['Uygulama'] = uygulama
-    df['Bağlantı'] = baglanti
-    return df
+    if "3g" in fname: df['Bağlantı'] = "3G"
+    elif "4.5g" in fname: df['Bağlantı'] = "4.5G"
+    else: df['Bağlantı'] = "Wi-Fi"
+    
+    return df[['Test Adı', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Bağlantı']]
 
-# Veri işleme süreci
 if uploaded_files:
-    all_data_list = []
-    for uploaded_file in uploaded_files:
-        # Senin dosyaların ';' ile ayrılmış olduğu için sep=';' ekledik
-        df_raw = pd.read_csv(uploaded_file, sep=';')
-        df_clean = veri_temizle(df_raw, uploaded_file.name)
-        all_data_list.append(df_clean)
+    combined_df = pd.concat([preprocess_data(f) for f in uploaded_files])
     
-    full_df = pd.concat(all_data_list, ignore_index=True)
+    # --- TEST ADI SEÇİMİ (Filtre) ---
+    st.subheader("🎯 Test Bazlı İnceleme")
+    selected_test = st.selectbox("Bir Test Seçin (Örn: 10MB.avi):", combined_df['Test Adı'].unique())
+    filtered_df = combined_df[combined_df['Test Adı'] == selected_test]
 
-    # --- Üst Metrikler (KPI) ---
-    st.subheader("📌 Genel Özet")
-    c1, c2, c3 = st.columns(3)
-    avg_dl = full_df.groupby('Uygulama')['İndirme Süresi'].mean().reset_index()
+    # --- AYRI AYRI BAĞLANTI KIYASLARI ---
+    # Yan yana 3 sütun: 3G | 4.5G | Wi-Fi
+    col1, col2, col3 = st.columns(3)
     
-    with c1:
-        st.metric("Toplam Test Sayısı", len(full_df))
-    with c2:
-        bip_avg = avg_dl[avg_dl['Uygulama'] == 'BiP']['İndirme Süresi'].values[0]
-        st.metric("BiP Ort. İndirme", f"{int(bip_avg)} ms")
-    with c3:
-        wa_avg = avg_dl[avg_dl['Uygulama'] == 'WhatsApp']['İndirme Süresi'].values[0]
-        st.metric("WhatsApp Ort. İndirme", f"{int(wa_avg)} ms")
+    baglantilar = ["3G", "4.5G", "Wi-Fi"]
+    column_list = [col1, col2, col3]
 
-    st.divider()
+    for i, baglanti in enumerate(baglantilar):
+        with column_list[i]:
+            st.info(f"### {baglanti} Performansı")
+            temp_df = filtered_df[filtered_df['Bağlantı'] == baglanti]
+            
+            if not temp_df.empty:
+                # İndirme vs Yükleme kıyaslaması için veriyi eritiyoruz (melt)
+                melted_df = temp_df.melt(id_vars=['Uygulama'], value_vars=['İndirme Süresi', 'Yükleme Süresi'], 
+                                        var_name='İşlem Türü', value_name='Süre (ms)')
+                
+                fig = px.bar(melted_df, x='İşlem Türü', y='Süre (ms)', color='Uygulama',
+                             barmode='group', text_auto=True,
+                             color_discrete_map={'BiP': '#1E90FF', 'WhatsApp': '#25D366'},
+                             title=f"{baglanti} - {selected_test}")
+                
+                fig.update_layout(showlegend=(i==0)) # Sadece ilk grafikte lejant göster
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning(f"{baglanti} için veri bulunamadı.")
 
-    # --- Görsel Karşılaştırma ---
-    # Kullanıcı belirli bir testi (örn: 10MB.avi) seçebilsin
-    test_listesi = full_df['Test Adı'].unique()
-    secilen_test = st.selectbox("Analiz etmek istediğiniz Testi seçin:", test_listesi)
-    
-    plot_df = full_df[full_df['Test Adı'] == secilen_test]
-
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        st.subheader("📥 İndirme Süreleri (ms)")
-        fig_dl = px.bar(plot_df, x='Bağlantı', y='İndirme Süresi', color='Uygulama',
-                        barmode='group', text_auto=True,
-                        color_discrete_map={'BiP': '#00d2ff', 'WhatsApp': '#25D366'})
-        st.plotly_chart(fig_dl, use_container_width=True)
-
-    with col_right:
-        st.subheader("📤 Yükleme Süreleri (ms)")
-        fig_ul = px.bar(plot_df, x='Bağlantı', y='Yükleme Süresi', color='Uygulama',
-                        barmode='group', text_auto=True,
-                        color_discrete_map={'BiP': '#00d2ff', 'WhatsApp': '#25D366'})
-        st.plotly_chart(fig_ul, use_container_width=True)
-
-    # Veri Tablosu
-    with st.expander("Tüm Verileri Tablo Olarak Gör"):
-        st.write(full_df)
+    # --- ÖZET ANALİZ NOTU ---
+    st.success("💡 **Analiz İpucu:** Sütun boyu ne kadar kısaysa uygulama o kadar hızlı demektir.")
 
 else:
-    st.info("💡 Devam etmek için lütfen sol taraftaki menüden CSV dosyalarınızı seçin.")
+    st.warning("Lütfen sol menüden CSV dosyalarını yükleyin.")

@@ -18,7 +18,7 @@ VERSİYONLAR = ["5.1", "5.2"]
 UYGULAMALAR = ["Bip", "Wa"]
 ŞEBEKELER = ["3G", "4G", "Wifi"]
 
-# Yeni formata göre dosya listesi oluşturma: "5.1_Bip_3G.xlsx"
+# Formata göre dosya listesi oluşturma: "5.1_Bip_3G.xlsx"
 VARSAYILAN_DOSYALAR = [
     f"{ver}_{app}_{net}.xlsx" 
     for ver in VERSİYONLAR 
@@ -48,7 +48,7 @@ def veri_isle(file_path):
         app_name = "BiP" if "bip" in app_raw else "WhatsApp"
         
         if "3g" in net_raw: network = "3G"
-        elif "4g" in net_raw or "4g" in net_raw: network = "4G"
+        elif "4g" in net_raw: network = "4G"
         elif "wifi" in net_raw: network = "Wi-Fi"
         else: network = net_raw.upper()
         
@@ -67,6 +67,51 @@ def veri_isle(file_path):
         st.error(f"⚠️ {file_path} işlenirken hata oluştu: {e}")
         return None
 
+# --- OTOMATİK YORUM FONKSİYONU ---
+def otomatik_yorum_yap(df_sub):
+    """Her dosya tipi için verileri inceleyip otomatik performans yorumu üretir."""
+    try:
+        yorumlar = []
+        
+        # En hızlı indirme ve yükleme senaryolarını bulma
+        en_hizli_indirme = df_sub.loc[df_sub['İndirme Süresi'].idxmin()]
+        en_hizli_yukleme = df_sub.loc[df_sub['Yükleme Süresi'].idxmin()]
+        
+        # Uygulama bazlı genel ortalamalar
+        ortalamalar = df_sub.groupby('Uygulama')[['İndirme Süresi', 'Yükleme Süresi']].mean()
+        
+        yorumlar.append(f"**⏱️ Genel Özet:**")
+        if len(ortalamalar) > 1:
+            bip_indirme = ortalamalar.loc['BiP', 'İndirme Süresi'] if 'BiP' in ortalamalar.index else 999999
+            wa_indirme = ortalamalar.loc['WhatsApp', 'İndirme Süresi'] if 'WhatsApp' in ortalamalar.index else 999999
+            
+            if bip_indirme < wa_indirme:
+                oran = (wa_indirme - bip_indirme) / wa_indirme * 100
+                yorumlar.append(f"- Bu dosya tipinde **BiP**, WhatsApp'a kıyasla ortalamada **%{oran:.1f} daha hızlı** indirme performansı gösteriyor.")
+            else:
+                oran = (bip_indirme - wa_indirme) / bip_indirme * 100
+                yorumlar.append(f"- Bu dosya tipinde **WhatsApp**, BiP'e kıyasla ortalamada **%{oran:.1f} daha hızlı** indirme performansı gösteriyor.")
+        
+        yorumlar.append(f"**⚡ Rekor Performanslar:**")
+        yorumlar.append(f"- **En Kısa İndirme Süresi:** {en_hizli_indirme['İndirme Süresi']} ms ile **{en_hizli_indirme['Grup']}** tarafından **{en_hizli_indirme['Şebeke']}** ağında ({en_hizli_indirme['Boyut']} dosyası için) elde edilmiştir.")
+        yorumlar.append(f"- **En Kısa Yükleme Süresi:** {en_hizli_yukleme['Yükleme Süresi']} ms ile **{en_hizli_yukleme['Grup']}** tarafından **{en_hizli_yukleme['Şebeke']}** ağında ({en_hizli_yukleme['Boyut']} dosyası için) elde edilmiştir.")
+        
+        # Versiyon kıyaslaması (5.1 vs 5.2)
+        v_ortalamalar = df_sub.groupby('Versiyon')[['İndirme Süresi', 'Yükleme Süresi']].mean()
+        if '5.1' in v_ortalamalar.index and '5.2' in v_ortalamalar.index:
+            yorumlar.append(f"**🔄 Versiyon Gelişimi:**")
+            v51_dl = v_ortalamalar.loc['5.1', 'İndirme Süresi']
+            v52_dl = v_ortalamalar.loc['5.2', 'İndirme Süresi']
+            if v52_dl < v51_dl:
+                gelişim = (v51_dl - v52_dl) / v51_dl * 100
+                yorumlar.append(f"- **V5.2 versiyonu**, V5.1'e göre indirme sürelerini genel olarak **%{gelişim:.1f} oranında iyileştirmiş** görünüyor.")
+            else:
+                yorumlar.append(f"- V5.2 versiyonunda bu dosya tipi için indirme sürelerinde belirgin bir optimizasyon artışı gözlemlenmedi.")
+
+        return "\n".join(yorumlar)
+    except:
+        return "Bu dosya tipi için otomatik yorum üretilemedi."
+
 # --- VERİ YÜKLEME ---
 all_data = []
 for f in VARSAYILAN_DOSYALAR:
@@ -80,59 +125,79 @@ if all_data:
     # --- FİLTRELER (SIDEBAR) ---
     st.sidebar.header("⚙️ Analiz Ayarları")
     
-    uzanti_listesi = sorted(full_df['Uzantı'].unique())
-    secilen_uzanti = st.sidebar.selectbox("Dosya Formatı Seçin:", uzanti_listesi)
-    
     secilen_versiyonlar = st.sidebar.multiselect(
         "Versiyonları Kıyasla:", 
         VERSİYONLAR, 
         default=VERSİYONLAR
     )
     
-    # Filtreleme uygula
-    mask = (full_df['Uzantı'] == secilen_uzanti) & (full_df['Versiyon'].isin(secilen_versiyonlar))
-    plot_df = full_df[mask]
+    # Renk paleti (Versiyon bazlı tonlama)
+    color_map = {
+        'BiP (V5.1)': '#3498db',       # Açık Mavi
+        'BiP (V5.2)': '#2980b9',       # Koyu Mavi
+        'WhatsApp (V5.1)': '#2ecc71',  # Açık Yeşil
+        'WhatsApp (V5.2)': '#27ae60'   # Koyu Yeşil
+    }
 
-    if not plot_df.empty:
-        # Renk paleti (Versiyon bazlı tonlama)
-        color_map = {
-            'BiP (V5.1)': '#3498db',       # Açık Mavi
-            'BiP (V5.2)': '#2980b9',       # Koyu Mavi
-            'WhatsApp (V5.1)': '#2ecc71',  # Açık Yeşil
-            'WhatsApp (V5.2)': '#27ae60'   # Koyu Yeşil
-        }
-
-        # --- GRAFİKLER ---
+    # Benzersiz dosya uzantılarını alıp sekmeler (tabs) oluşturma
+    uzanti_listesi = sorted(full_df['Uzantı'].unique())
+    
+    if uzanti_listesi:
+        st.info(f"📊 Toplam {len(uzanti_listesi)} farklı dosya tipi tespit edildi. Sekmelerden inceleyebilirsiniz.")
         
-        # 1. YÜKLEME
-        st.subheader(f"📤 {secilen_uzanti} - Yükleme Performansı")
-        fig_up = px.bar(
-            plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
-            facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4G", "Wi-Fi"]},
-            color_discrete_map=color_map,
-            labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'Uygulama & Versiyon'}
-        )
-        st.plotly_chart(fig_up, use_container_width=True)
-
-        st.divider()
-
-        # 2. İNDİRME
-        st.subheader(f"📥 {secilen_uzanti} - İndirme Performansı")
-        fig_down = px.bar(
-            plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
-            facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4G", "Wi-Fi"]},
-            color_discrete_map=color_map,
-            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'Uygulama & Versiyon'}
-        )
-        st.plotly_chart(fig_down, use_container_width=True)
-
-        # Tablo Görünümü
-        with st.expander("📊 Ham Veri Tablosu"):
-            st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Versiyon']), use_container_width=True)
+        # Her dosya tipi için bir sekme oluştur
+        sekmeler = st.tabs([f"📄 {uz} Formatı" for uz in uzanti_listesi])
+        
+        for i, uzanti in enumerate(uzanti_listesi):
+            with sekmeler[i]:
+                # Sadece bu sekmeye ait dosya uzantısını ve seçilen versiyonları filtrele
+                mask = (full_df['Uzantı'] == uzanti) & (full_df['Versiyon'].isin(secilen_versiyonlar))
+                plot_df = full_df[mask]
+                
+                if not plot_df.empty:
+                    st.header(f"🎯 {uzanti} Formatı Performans Raporu")
+                    
+                    # --- OTOMATİK ANALİZ VE YORUM ALANI ---
+                    st.subheader("💡 Yapay Zeka / Otomatik Veri Yorumu")
+                    yorum_metni = otomatik_yorum_yap(plot_df)
+                    st.info(yorum_metni)
+                    
+                    # Grafik düzeni için iki kolon oluşturma
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("📤 Yükleme Performansı")
+                        fig_up = px.bar(
+                            plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
+                            facet_col='Şebeke', barmode='group', text_auto=True,
+                            category_orders={"Şebeke": ["3G", "4G", "Wi-Fi"]},
+                            color_discrete_map=color_map,
+                            labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'Uygulama & Versiyon'}
+                        )
+                        fig_up.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                        st.plotly_chart(fig_up, use_container_width=True)
+                        
+                    with col2:
+                        st.subheader("📥 İndirme Performansı")
+                        fig_down = px.bar(
+                            plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
+                            facet_col='Şebeke', barmode='group', text_auto=True,
+                            category_orders={"Şebeke": ["3G", "4G", "Wi-Fi"]},
+                            color_discrete_map=color_map,
+                            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'Uygulama & Versiyon'}
+                        )
+                        fig_down.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                        st.plotly_chart(fig_down, use_container_width=True)
+                    
+                    st.divider()
+                    
+                    # Tablo Görünümü
+                    with st.expander(f"📊 {uzanti} Formatı Ham Veri Tablosu"):
+                        st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Versiyon']), use_container_width=True)
+                else:
+                    st.warning("Seçilen filtrelere uygun veri bulunamadı.")
     else:
-        st.warning("Seçilen filtrelere uygun veri bulunamadı.")
+        st.warning("Dosyalardan hiçbir uzantı bilgisi çıkarılamadı.")
 else:
     st.error("❌ Veri dosyaları bulunamadı!")
     st.info("""

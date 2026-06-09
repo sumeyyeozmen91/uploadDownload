@@ -10,7 +10,7 @@ st.set_page_config(page_title="Hız Testi Analiz Merkezi", layout="wide")
 st.title("🚀 BiP vs WhatsApp Performans Kıyaslama (V5.1 & V5.2)")
 st.markdown("""
     Bu panelde dosyalar **Versiyon_Uygulama_Şebeke** formatına göre otomatik analiz edilir. 
-    Örn: `5.1_Bip_3G.xlsx` veya `5.2_Wa_Wifi.xlsx`
+    Örn: `5.1_Bip_3G.xlsx` veya `5.2_Wa_4G.xlsx`
 """)
 
 # --- YAPILANDIRMA ---
@@ -31,7 +31,6 @@ def veri_isle(file_path):
         if not os.path.exists(file_path):
             return None
             
-        # Eğer gerçek dosyalarınız CSV ise pd.read_csv(file_path) olarak güncelleyebilirsiniz.
         df = pd.read_excel(file_path)
         
         # Sütun isimlerini temizle (Örn: "Yükleme Süresi (ms)" -> "Yükleme Süresi")
@@ -79,10 +78,10 @@ def dinamik_yorum_yap(df, metrik_kolonu, metrik_adi):
     en_hizli = df.loc[df[metrik_kolonu].idxmin()]
     en_yavas = df.loc[df[metrik_kolonu].idxmax()]
     
-    yorumlar.append(f"• **Genel Değerlendirme:** Seçilen filtrelerde en kısa {metrik_adi} süresi **{en_hizli['Boyut']}** dosyasında, **{en_hizli['Grup']}** ile **{en_hizli['Şebeke']}** şebekesinde (**{int(en_hizli[metrik_kolonu]):,} ms**) ölçülmüştür. "
+    yorumlar.append(f"📌 **Genel Değerlendirme:** Seçilen filtrelerde en kısa {metrik_adi} süresi **{en_hizli['Boyut']}** dosyasında, **{en_hizli['Grup']}** ile **{en_hizli['Şebeke']}** şebekesinde (**{int(en_hizli[metrik_kolonu]):,} ms**) ölçülmüştür. "
                     f"En uzun süre ise **{en_yavas['Boyut']}** dosyasında, **{en_yavas['Grup']}** ile **{en_yavas['Şebeke']}** şebekesinde (**{int(en_yavas[metrik_kolonu]):,} ms**) görülmüştür.")
 
-    # 2. Şebeke Bazlı Kıyaslama (Ortalamalar)
+    # 2. Şebeke Bazlı WhatsApp vs BiP Kıyaslaması (Genel Ortalamalar)
     sebeke_ort = df.groupby(['Şebeke', 'Uygulama'])[metrik_kolonu].mean().unstack()
     
     sebeke_yorumları = []
@@ -93,29 +92,29 @@ def dinamik_yorum_yap(df, metrik_kolonu, metrik_adi):
             if pd.notna(bip_hiz) and pd.notna(wa_hiz):
                 if bip_hiz < wa_hiz:
                     fark_yuzde = ((wa_hiz - bip_hiz) / wa_hiz) * 100
-                    sebeke_yorumları.append(f"**{sebeke}** şebekesinde **BiP**, WhatsApp'tan ortalama olarak daha hızlıdır.")
+                    sebeke_yorumları.append(f"**{sebeke}** ağında **BiP**, WhatsApp'a göre ortalamada **%{fark_yuzde:.1f} daha hızlı** sonuç vermiştir.")
                 else:
                     fark_yuzde = ((bip_hiz - wa_hiz) / bip_hiz) * 100
-                    sebeke_yorumları.append(f"**{sebeke}** şebekesinde **WhatsApp**, BiP'ten ortalama olarak daha hızlıdır.")
+                    sebeke_yorumları.append(f"**{sebeke}** ağında **WhatsApp**, BiP'e göre ortalamada **%{fark_yuzde:.1f} daha hızlı** sonuç vermiştir.")
                     
     if sebeke_yorumları:
-        yorumlar.append(f"• **Şebeke Trendleri:** " + " ".join(sebeke_yorumları))
+        yorumlar.append(f"📶 **WhatsApp vs BiP Trendleri:**\n" + "\n".join([f"- {s}" for s in sebeke_yorumları]))
         
-    # 3. Versiyon Gelişimi (V5.1 vs V5.2 Karşılaştırması)
-    ver_ort = df.groupby(['Uygulama', 'Versiyon'])[metrik_kolonu].mean().unstack()
-    if '5.1' in ver_ort.columns and '5.2' in ver_ort.columns:
-        ver_yorumlar = []
-        for uyg in ver_ort.index:
-            v1 = ver_ort.loc[uyg, '5.1']
-            v2 = ver_ort.loc[uyg, '5.2']
-            if pd.notna(v1) and pd.notna(v2):
-                if v2 < v1:
-                    iyilesme = ((v1 - v2) / v1) * 100
-                    ver_yorumlar.append(f"**{uyg}** uygulaması V5.2 sürümünde ortalama performansını iyileştirmiştir.")
-                else:
-                    ver_yorumlar.append(f"**{uyg}** uygulaması V5.2 sürümünde ortalama gecikme süresinde artış yaşamıştır.")
-        if ver_yorumlar:
-            yorumlar.append(f"• **Sürüm Gelişimleri:** " + " ".join(ver_yorumlar))
+    # 3. BiP 5.1 vs BiP 5.2 Karşılaştırması
+    bip_df = df[df['Uygulama'] == 'BiP']
+    if not bip_df.empty:
+        bip_ver_ort = bip_df.groupby('Versiyon')[metrik_kolonu].mean()
+        if '5.1' in bip_ver_ort.index and '5.2' in bip_ver_ort.index:
+            v51_bip = bip_ver_ort['5.1']
+            v52_bip = bip_ver_ort['5.2']
+            
+            if v52_bip < v51_bip:
+                iyilesme = ((v51_bip - v52_bip) / v51_bip) * 100
+                bip_notu = f"🔄 **BiP Versiyon Gelişimi:** BiP uygulaması **V5.2** sürümünde, V5.1 sürümüne göre ortalama {metrik_adi} süresini **%{iyilesme:.1f} oranında düşürerek (hızlandırarak)** performans artışı yakalamıştır."
+            else:
+                yavaslama = ((v52_bip - v51_bip) / v51_bip) * 100
+                bip_notu = f"🔄 **BiP Versiyon Gelişimi:** BiP uygulaması **V5.2** sürümünde, V5.1 sürümüne göre ortalama {metrik_adi} süresinde **%{yavaslama:.1f} oranında bir artış (yavaşlama)** kaydetmiştir."
+            yorumlar.append(bip_notu)
 
     return "\n\n".join(yorumlar)
 

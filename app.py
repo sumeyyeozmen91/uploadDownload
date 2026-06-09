@@ -16,7 +16,7 @@ st.markdown("""
 # --- YAPILANDIRMA ---
 VERSİYONLAR = ["5.1", "5.2"]
 UYGULAMALAR = ["Bip", "Wa"]
-ŞEBEKELER = ["3G", "4.5G", "Wifi"]
+ŞEBEKELER = ["3G", "4G", "Wifi"]
 
 # Yeni formata göre dosya listesi oluşturma: "5.1_Bip_3G.xlsx"
 VARSAYILAN_DOSYALAR = [
@@ -42,13 +42,13 @@ def veri_isle(file_path):
         
         version = parts[0] # "5.1" veya "5.2"
         app_raw = parts[1] # "bip" veya "wa"
-        net_raw = parts[2].replace(".xlsx", "") # "3g", "4.5g" veya "wifi"
+        net_raw = parts[2].replace(".xlsx", "") # "3g", "4g" veya "wifi"
         
         # Etiketleri düzenle
         app_name = "BiP" if "bip" in app_raw else "WhatsApp"
         
         if "3g" in net_raw: network = "3G"
-        elif "4.5g" in net_raw or "4g" in net_raw: network = "4.5G"
+        elif "4g" in net_raw or "4g" in net_raw: network = "4G"
         elif "wifi" in net_raw: network = "Wi-Fi"
         else: network = net_raw.upper()
         
@@ -109,7 +109,7 @@ if all_data:
         fig_up = px.bar(
             plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
             facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4.5G", "Wi-Fi"]},
+            category_orders={"Şebeke": ["3G", "4G", "Wi-Fi"]},
             color_discrete_map=color_map,
             labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'Uygulama & Versiyon'}
         )
@@ -122,7 +122,7 @@ if all_data:
         fig_down = px.bar(
             plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
             facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4.5G", "Wi-Fi"]},
+            category_orders={"Şebeke": ["3G", "4G", "Wi-Fi"]},
             color_discrete_map=color_map,
             labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'Uygulama & Versiyon'}
         )
@@ -137,5 +137,5 @@ else:
     st.error("❌ Veri dosyaları bulunamadı!")
     st.info("""
     Lütfen Excel dosyalarınızın script ile aynı klasörde ve şu isimlerde olduğundan emin olun:
-    - **5.1_Bip_3G.xlsx**, **5.2_Bip_4.5G.xlsx**, **5.1_Wa_Wifi.xlsx** vb.
+    - **5.1_Bip_3G.xlsx**, **5.2_Bip_4G.xlsx**, **5.1_Wa_Wifi.xlsx** vb.
     """)

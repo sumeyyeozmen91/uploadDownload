@@ -123,4 +123,66 @@ if all_data:
     
     # Şebeke Filtresi
     mevcut_sebekeler = sorted(full_df['Şebeke'].unique())
-    secilen_sebekeler = st.sidebar.multise
+    secilen_sebekeler = st.sidebar.multiselect("Şebeke Seçimi:", mevcut_sebekeler, default=mevcut_sebekeler)
+    
+    # Veriyi filtrele
+    plot_df = full_df[
+        (full_df['Uzantı'] == secilen_uzanti) & 
+        (full_df['Foto Modu'] == secilen_mod) & 
+        (full_df['Grup'].isin(secilen_gruplar)) &
+        (full_df['Şebeke'].isin(secilen_sebekeler))
+    ]
+
+    if not plot_df.empty:
+        # Renk Düzeni (Versiyon tonlaması)
+        color_map = {
+            'BiP (VV5.1.23)': '#3498db',     # Açık Mavi
+            'BiP (VV5.2.6)': '#1f3a60'       # Koyu Lacivert
+        }
+
+        # --- GRAFİKLER VE DETAYLI YORUMLAR ---
+        
+        # 1. YÜKLEME (UPLOAD)
+        st.subheader(f"📤 {secilen_uzanti} - {secilen_mod} Yükleme Performansı Kıyaslaması")
+        fig_up = px.bar(
+            plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
+            facet_col='Şebeke', barmode='group', text_auto=True,
+            category_orders={"Şebeke": ["4.5G", "Wi-Fi"], "Grup": ["BiP (V5.1.23)", "BiP (V5.2.6)"]},
+            color_discrete_map=color_map,
+            labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'Sürüm'}
+        )
+        st.plotly_chart(fig_up, use_container_width=True)
+        
+        # Yükleme Yorum Alanı
+        st.info(surum_gelisim_yorumu(plot_df, 'Yükleme Süresi', 'yükleme'))
+
+        st.divider()
+
+        # 2. İNDİRME (DOWNLOAD)
+        st.subheader(f"📥 {secilen_uzanti} - {secilen_mod} İndirme Performansı Kıyaslaması")
+        fig_down = px.bar(
+            plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
+            facet_col='Şebeke', barmode='group', text_auto=True,
+            category_orders={"Şebeke": ["4.5G", "Wi-Fi"], "Grup": ["BiP (V5.1.23)", "BiP (V5.2.6)"]},
+            color_discrete_map=color_map,
+            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'Sürüm'}
+        )
+        st.plotly_chart(fig_down, use_container_width=True)
+        
+        # İndirme Yorum Alanı
+        st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
+
+        # Ham Veri Tablosu
+        with st.expander("📊 Filtrelenmiş Detaylı Veri Tablosu"):
+            st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Grup']), use_container_width=True)
+    else:
+        st.warning("Seçilen kriterlere uygun veri bulunamadı.")
+else:
+    st.error("❌ Klasörde yeni formata uygun .xlsx dosyası bulunamadı!")
+    st.info("""
+    **Beklenen örnek dosya isimleri:**
+    - `5.1.23_Bip_4.5G_HDPhoto.xlsx`
+    - `5.1.23_Bip_Wifi_SDPhoto.xlsx`
+    - `5.2.6_Bip_4.5G_HDPhoto.xlsx`
+    - `5.2.6_Bip_Wifi_SDPhoto.xlsx`
+    """)

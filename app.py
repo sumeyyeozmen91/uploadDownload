@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
-import glob
 
 # Sayfa genel ayarları
 st.set_page_config(page_title="BiP Sürüm Analiz Merkezi", layout="wide")
@@ -15,32 +14,38 @@ st.markdown("""
     - **Fotoğraf Kalite Tipleri:** HDPhoto & SDPhoto
 """)
 
-def veri_isle(file_path):
+# --- TAM DOSYA İSİMLERİ YAPILANDIRMASI ---
+# Kısaltma olmadan, tam isimleri hem .xlsx hem de .csv varyasyonlarıyla tanımlıyoruz
+HEDEF_DOSYALAR = [
+    {"dosya": "5.1.23_Bip_4.5G_HDPhoto.csv", "ver": "5.1.23", "net": "4.5G", "photo": "HDPhoto"},
+    {"dosya": "5.1.23_Bip_4.5G_HDPhoto.xlsx", "ver": "5.1.23", "net": "4.5G", "photo": "HDPhoto"},
+    
+    {"dosya": "5.1.23_Bip_4.5G_SDPhoto.csv", "ver": "5.1.23", "net": "4.5G", "photo": "SDPhoto"},
+    {"dosya": "5.1.23_Bip_4.5G_SDPhoto.xlsx", "ver": "5.1.23", "net": "4.5G", "photo": "SDPhoto"},
+    
+    {"dosya": "5.1.23_Bip_Wifi_HDPhoto.csv", "ver": "5.1.23", "net": "Wi-Fi", "photo": "HDPhoto"},
+    {"dosya": "5.1.23_Bip_Wifi_HDPhoto.xlsx", "ver": "5.1.23", "net": "Wi-Fi", "photo": "HDPhoto"},
+    
+    {"dosya": "5.1.23_Bip_Wifi_SDPhoto.csv", "ver": "5.1.23", "net": "Wi-Fi", "photo": "SDPhoto"},
+    {"dosya": "5.1.23_Bip_Wifi_SDPhoto.xlsx", "ver": "5.1.23", "net": "Wi-Fi", "photo": "SDPhoto"},
+    
+    {"dosya": "5.2.6_Bip_4.5G_HDPhoto.csv", "ver": "5.2.6", "net": "4.5G", "photo": "HDPhoto"},
+    {"dosya": "5.2.6_Bip_4.5G_HDPhoto.xlsx", "ver": "5.2.6", "net": "4.5G", "photo": "HDPhoto"},
+    
+    {"dosya": "5.2.6_Bip_4.5G_SDPhoto.csv", "ver": "5.2.6", "net": "4.5G", "photo": "SDPhoto"},
+    {"dosya": "5.2.6_Bip_4.5G_SDPhoto.xlsx", "ver": "5.2.6", "net": "4.5G", "photo": "SDPhoto"},
+    
+    {"dosya": "5.2.6_Bip_Wifi_HDPhoto.csv", "ver": "5.2.6", "net": "Wi-Fi", "photo": "HDPhoto"},
+    {"dosya": "5.2.6_Bip_Wifi_HDPhoto.xlsx", "ver": "5.2.6", "net": "Wi-Fi", "photo": "HDPhoto"},
+    
+    {"dosya": "5.2.6_Bip_Wifi_SDPhoto.csv", "ver": "5.2.6", "net": "Wi-Fi", "photo": "SDPhoto"},
+    {"dosya": "5.2.6_Bip_Wifi_SDPhoto.xlsx", "ver": "5.2.6", "net": "Wi-Fi", "photo": "SDPhoto"}
+]
+
+def veri_isle(cfg):
     try:
+        file_path = cfg["dosya"]
         if not os.path.exists(file_path):
-            return None
-            
-        fname = os.path.basename(file_path).lower()
-        
-        # --- DOSYA ADI FORMATI KONTROLÜ VE AYRIŞTIRMA ---
-        # Dosya ismi mutlaka 5.1.23 veya 5.2.6 ile başlamalı ve en az 3 adet '_' barındırmalıdır
-        if not (fname.startswith('5.1.23') or fname.startswith('5.2.6')):
-            return None
-            
-        parts = fname.split('_')
-        if len(parts) < 4:  # Eğer dosya ismi parçalandığında 4 elemandan azsa hatalı formattır, es geç
-            return None
-            
-        version = parts[0]       # "5.1.23" veya "5.2.6"
-        net_raw = parts[2]       # "4.5g" or "wifi"
-        photo_type = parts[3].replace(".xlsx", "").replace(".csv", "").upper() # "HDPHOTO" veya "SDPHOTO"
-        
-        # Şebeke ismini standartlaştır ve filtrele (3G hariç bırakıldı)
-        if "4.5g" in net_raw or "4g" in net_raw: 
-            network = "4.5G"
-        elif "wifi" in net_raw: 
-            network = "Wi-Fi"
-        else:
             return None
             
         # Uzantıya göre esnek okuma mimarisi
@@ -64,12 +69,12 @@ def veri_isle(file_path):
         df["İndirme Süresi"] = pd.to_numeric(df["İndirme Süresi"], errors='coerce')
         df["Yükleme Süresi"] = pd.to_numeric(df["Yükleme Süresi"], errors='coerce')
         
-        # DataFrame alanlarını doldur
+        # Sabit haritadan gelen güvenli meta verileri doldur
         df['Uygulama'] = "BiP"
-        df['Versiyon'] = version
-        df['Şebeke'] = network
-        df['Fotoğraf Tipi'] = photo_type
-        df['Grup'] = f"BiP (V{version})"
+        df['Versiyon'] = cfg["ver"]
+        df['Şebeke'] = cfg["net"]
+        df['Fotoğraf Tipi'] = cfg["photo"]
+        df['Grup'] = f"BiP (V{cfg['ver']})"
         
         # Dosya uzantısı ve dosya boyutunu test adından ayıkla
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
@@ -77,7 +82,6 @@ def veri_isle(file_path):
         
         return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Fotoğraf Tipi', 'Grup']]
     except Exception as e:
-        # Hata basmak yerine loglayıp devam etmesi için st.error yerine pass veya minimal log kullanabilirsin
         return None
 
 # --- SÜRÜM GELİŞİM ANALİZ MOTORU ---
@@ -116,12 +120,10 @@ def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
         
     return "\n".join(yorumlar)
 
-# --- VERİ TARAMA VE YÜKLEME ---
-dosya_havuzu = glob.glob("*.xlsx") + glob.glob("*.csv")
+# --- VERİ YÜKLEME SÜRECİ ---
 all_data = []
-
-for f in dosya_havuzu:
-    res = veri_isle(f)
+for cfg in HEDEF_DOSYALAR:
+    res = veri_isle(cfg)
     if res is not None:
         all_data.append(res)
 
@@ -140,7 +142,7 @@ if all_data:
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Sürümler:", mevcut_gruplar, default=mevcut_gruplar)
     
-    # Maskeleme ve filtreleme
+    # Maskeleme ve nihai filtreleme
     mask = (
         (full_df['Uzantı'] == secilen_uzanti) & 
         (full_df['Fotoğraf Tipi'] == secilen_foto_tipi) & 
@@ -191,4 +193,11 @@ if all_data:
     else:
         st.warning("Seçilen kriterlere uygun test verisi üretilemedi. Lütfen yan menüdeki filtreleri kontrol edin.")
 else:
-    st.error("❌ Çalışma dizininde hedeflenen formatta (5.1.23_* veya 5.2.6_*) dosya bulunamadı!")
+    st.error("❌ Çalışma dizininde tanımlanan tam isimli dosyalardan hiçbiri bulunamadı!")
+    st.info("""
+    **Aranan Tam Dosya İsimleri:**
+    - `5.1.23_Bip_4.5G_HDPhoto.xlsx` veya `.csv`
+    - `5.1.23_Bip_Wifi_SDPhoto.xlsx` veya `.csv`
+    - `5.2.6_Bip_4.5G_HDPhoto.xlsx` veya `.csv`
+    - `5.2.6_Bip_Wifi_SDPhoto.xlsx` veya `.csv`
+    """)

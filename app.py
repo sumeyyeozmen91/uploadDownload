@@ -8,10 +8,10 @@ import glob
 st.set_page_config(page_title="BiP Versiyon Karşılaştırma Merkezi", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP Versiyon Performans Analizi")
+st.title("🚀 BiP Versiyon İndirme Performans Analizi")
 st.markdown("""
-    Bu panelde BiP uygulamasının versiyon gelişimi analiz edilir:
-    * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki performans farkları ve iyileşme oranları.
+    Bu panelde BiP uygulamasının iki farklı sürümü arasındaki **İndirme (Download)** süreleri kıyaslanır:
+    * **BiP (V5.1.23) vs BiP (V5.2.6)**
 """)
 
 def veri_isle(file_path):
@@ -28,29 +28,25 @@ def veri_isle(file_path):
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
+        # Dosyanızdaki sütun adını 'İndirme Süresi' olarak haritalandırıyoruz
         sutun_haritasi = {
-            'Duration': 'Yükleme Süresi',
-            'Download_Duration': 'İndirme Süresi'
+            'Download_Duration': 'İndirme Süresi',
+            'Duration': 'İndirme Süresi'  # Eğer bazı dosyalarda sadece Duration geçiyorsa
         }
         df.rename(columns=sutun_haritasi, inplace=True)
 
-        gerekli_sutunlar = ['Test Adı', 'Yükleme Süresi', 'İndirme Süresi']
-        for col in gerekli_sutunlar:
-            if col not in df.columns:
-                st.error(f"⚠️ {os.path.basename(file_path)} içinde gerekli sütun yapısı çözülemedi! Mevcut Sütunlar: {list(df.columns)}")
-                return None
+        if 'İndirme Süresi' not in df.columns:
+            st.error(f"⚠️ {os.path.basename(file_path)} içinde İndirme Süresi (Download_Duration) sütunu bulunamadı!")
+            return None
 
-        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME (PyArrow String Hatası Çözümü) ---
-        for col in ['Yükleme Süresi', 'İndirme Süresi']:
-            # Sütundaki değerleri tek tek stringe çevirip temizliyoruz (vektörel kilitleri kırmak için)
-            df[col] = df[col].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
-            df[col] = df[col].str.replace(',', '.')
-            
-            # Önce objeyi sayısal değere zorla, ardından float tipine cast et
-            df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
+        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
+        # Hücrelerde metinsel ifadeler veya Arrow String kilitleri varsa satır bazında temizliyoruz
+        df['İndirme Süresi'] = df['İndirme Süresi'].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
+        df['İndirme Süresi'] = df['İndirme Süresi'].str.replace(',', '.')
+        df['İndirme Süresi'] = pd.to_numeric(df['İndirme Süresi'], errors='coerce').astype(float)
 
-        # Grafiklerin bozulmaması için sayısal verisi olmayan satırları eliyoruz
-        df = df.dropna(subset=['Yükleme Süresi', 'İndirme Süresi'])
+        # Sayısal verisi olmayan boş satırları eliyoruz
+        df = df.dropna(subset=['İndirme Süresi'])
 
         fname = os.path.basename(file_path).lower()
 
@@ -94,7 +90,7 @@ def veri_isle(file_path):
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
         df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
 
-        return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
         st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
@@ -169,22 +165,7 @@ if all_data:
         if len(mevcut_gruplar) > 0: color_map[mevcut_gruplar[0]] = '#3498db'
         if len(mevcut_gruplar) > 1: color_map[mevcut_gruplar[1]] = '#1f3a60'
 
-        # --- GRAFİKLER ---
-        # 1. YÜKLEME (UPLOAD)
-        st.subheader(f"📤 {secilen_kalite} {secilen_tur} Dosyaları - Yükleme Performansı Kıyaslaması")
-        fig_up = px.bar(
-            plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
-            facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["4.5G", "Wi-Fi"], "Grup": mevcut_gruplar},
-            color_discrete_map=color_map,
-            labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
-        )
-        st.plotly_chart(fig_up, use_container_width=True)
-        st.info(surum_gelisim_yorumu(plot_df, 'Yükleme Süresi', 'yükleme'))
-
-        st.divider()
-
-        # 2. İNDİRME (DOWNLOAD)
+        # --- TEK GRAFİK: İNDİRME (DOWNLOAD) ---
         st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
         fig_down = px.bar(
             plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
@@ -194,8 +175,11 @@ if all_data:
             labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
         )
         st.plotly_chart(fig_down, use_container_width=True)
+        
+        # İndirme Performans Analiz Özeti
         st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
 
+        # Ham Veri Tablosu
         with st.expander("📊 Filtrelenmiş Veri Tablosu"):
             st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Grup']), use_container_width=True)
     else:

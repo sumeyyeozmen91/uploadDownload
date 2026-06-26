@@ -8,10 +8,12 @@ import glob
 st.set_page_config(page_title="Hız Testi Analiz Merkezi", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP Sürüm Gelişimi ve Performans Analizi")
+st.title("🚀 BiP Versiyon Performans Analizi (Fotoğraf Modları)")
 st.markdown("""
-    Bu panelde dosyalar **Versiyon_Uygulama_Şebeke_Senaryo** formatına göre otomatik analiz edilir. 
-    Grafiklerin altında, seçilen her **Dosya Formatı** ve **Yük Senaryosuna (HDPhoto / SDPhoto)** özel otomatik analitik karşılaştırma yorumları üretilmektedir.
+    Bu panelde, yeni test formatına göre fotoğraf yükleme ve indirme performansları analiz edilir.
+    - **Sürümler:** V5.1.23 vs V5.2.6
+    - **Şebekeler:** 4.5G ve Wi-Fi
+    - **Fotoğraf Modları:** HDPhoto ve SDPhoto
 """)
 
 def veri_isle(file_path):
@@ -19,188 +21,106 @@ def veri_isle(file_path):
         if not os.path.exists(file_path):
             return None
             
-        # Uzantıya göre esnek okuma (CSV veya Excel)
-        if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path)
-        else:
-            df = pd.read_excel(file_path)
-            
-        # Sütun isimlerini temizle ve (ms) eklerini kaldır
+        df = pd.read_excel(file_path)
+        
+        # Sütun isimlerini temizle
         df.columns = [str(c).split(' (')[0].strip() for c in df.columns]
-        
-        # Olası farklı sütun isimlerini standart hale getir
-        rename_dict = {}
-        for col in df.columns:
-            if "İndirme" in col: rename_dict[col] = "İndirme Süresi"
-            elif "Yükleme" in col: rename_dict[col] = "Yükleme Süresi"
-            elif "Test Adı" in col: rename_dict[col] = "Test Adı"
-        df = df.rename(columns=rename_dict)
-        
-        # Süreleri sayısal tipe zorla
-        df["İndirme Süresi"] = pd.to_numeric(df["İndirme Süresi"], errors='coerce')
-        df["Yükleme Süresi"] = pd.to_numeric(df["Yükleme Süresi"], errors='coerce')
         
         fname = os.path.basename(file_path).lower()
         
-        # --- DİNAMİK DOSYA ADI FORMATI AYRIŞTIRMA ---
-        # Örnek: 5.1.23_bip_4.5g_hdphoto.csv
-        if "_" in fname:
+        # --- YENİ DOSYA ADI FORMATI AYRIŞTIRMA ---
+        # Örn: 5.1.23_bip_4.5g_hdphoto.xlsx veya .csv
+        if "_" in fname and ('5.1.23' in fname or '5.2.6' in fname):
             parts = fname.split('_')
-            version = parts[0].upper()       # "5.1.23" veya "5.2.6"
+            version = parts[0]              # "5.1.23" veya "5.2.6"
             app_name = "BiP"
-            net_raw = parts[2]               # "4.5g" veya "wifi"
-            
-            # Senaryo ismini ayıkla (Uzantıyı temizle)
-            scenario = parts[3].split('.')[0].upper() # "HDPHOTO" veya "SDPHOTO"
+            net_raw = parts[2]              # "4.5g" veya "wifi"
+            mode_raw = parts[3].replace(".xlsx", "").replace(".csv", "").upper() # "HDPHOTO" veya "SDPHOTO"
         else:
-            return None # Formata uymayan dosyaları es geç
-            
-        # Şebeke ismini standartlaştır
-        if "3g" in net_raw: network = "3G"
-        elif "4g" in net_raw or "4.5g" in net_raw: network = "4.5G"
-        elif "wifi" in net_raw: network = "Wi-Fi"
-        else: network = net_raw.upper()
+            return None # Tanımlanamayan formatları es geç
         
-        # DataFrame meta verilerini doldur
+        # Şebeke ismini standartlaştır (Sadece 4.5G ve Wi-Fi)
+        if "4.5g" in net_raw or "4g" in net_raw: 
+            network = "4.5G"
+        elif "wifi" in net_raw: 
+            network = "Wi-Fi"
+        else:
+            return None # 3G vb. varsa dahil etme
+        
+        # DataFrame sütunlarını doldur
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
-        df['Senaryo'] = scenario
+        df['Foto Modu'] = "HD Fotoğraf" if "HDPHOTO" in mode_raw else "SD Fotoğraf"
         df['Grup'] = f"BiP (V{version})"
         
-        # "Test Adı" sütunundan Dosya Uzantısını ve Boyut Etiketini Ayıkla
+        # Dosya uzantısı ve boyutu çıkarma (Test Adı sütunundan)
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
         df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
         
-        return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Senaryo', 'Grup']]
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Foto Modu', 'Grup']]
     except Exception as e:
         st.error(f"⚠️ {file_path} işlenirken hata oluştu: {e}")
         return None
 
-# --- ÖZEL İKİLİ SÜRÜM GELİŞİM YORUM MOTORU ---
-def ozel_glisim_yorumu(df, metrik_kolonu, metrik_adi):
+# --- SÜRÜM GELİŞİM YORUM MOTORU ---
+def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
     if df.empty:
         return "Yorumlanacak veri bulunamadı."
-        
+    
     yorumlar = []
+    bip51_df = df[df['Versiyon'] == '5.1.23']
+    bip52_df = df[df['Versiyon'] == '5.2.6']
     
-    # Mevcut filtredeki versiyonları bul
-    versiyonlar = sorted(df['Versiyon'].unique())
+    yorumlar.append("### 🔄 Sürümler Arası Geçiş ve Optimizasyon Analizi (V5.1.23 ➡️ V5.2.6)")
     
-    if len(versiyonlar) >= 2:
-        v_eski = versiyonlar[0]
-        v_yeni = versiyonlar[1]
-        
-        eski_df = df[df['Versiyon'] == v_eski]
-        yeni_df = df[df['Versiyon'] == v_yeni]
-        
-        sebekeler = sorted(list(set(eski_df['Şebeke']).intersection(set(yeni_df['Şebeke']))))
+    if not bip51_df.empty and not bip52_df.empty:
+        sebekeler = sorted(list(set(bip51_df['Şebeke']).intersection(set(bip52_df['Şebeke']))))
+        modlar = sorted(list(set(bip51_df['Foto Modu']).intersection(set(bip52_df['Foto Modu']))))
         
         for seb in sebekeler:
-            eski_ort = eski_df[eski_df['Şebeke'] == seb][metrik_kolonu].mean()
-            yeni_ort = yeni_df[yeni_df['Şebeke'] == seb][metrik_kolonu].mean()
-            
-            if pd.notna(eski_ort) and pd.notna(yeni_ort):
-                if yeni_ort < eski_ort:
-                    iyilesme = ((eski_ort - yeni_ort) / eski_ort) * 100
-                    yorumlar.append(f"- **{seb} Altyapısında:** Yeni **V{v_yeni}** sürümü, eski V{v_eski} sürümüne göre ortalama {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** başarılı bir optimizasyon sergilemiştir. ✅")
-                else:
-                    yavaslama = ((yeni_ort - eski_ort) / eski_ort) * 100
-                    yorumlar.append(f"- **{seb} Altyapısında:** Yeni **V{v_yeni}** sürümünde, eski V{v_eski} sürümüne kıyasla ortalama {metrik_adi} süresinde **%{yavaslama:.1f} oranında bir yavaşlama (regresyon)** saptanmıştır. ⚠️")
+            for mod in modlar:
+                v51_ort = bip51_df[(bip51_df['Şebeke'] == seb) & (bip51_df['Foto Modu'] == mod)][metrik_kolonu].mean()
+                v52_ort = bip52_df[(bip52_df['Şebeke'] == seb) & (bip52_df['Foto Modu'] == mod)][metrik_kolonu].mean()
+                
+                if pd.notna(v51_ort) and pd.notna(v52_ort):
+                    if v52_ort < v51_ort:
+                        iyilesme = ((v51_ort - v52_ort) / v51_ort) * 100
+                        yorumlar.append(f"- **{seb} - {mod} Modunda:** Yeni **V5.2.6 sürümü**, eski sürüme göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
+                    else:
+                        yavaslama = ((v52_ort - v51_ort) / v51_ort) * 100
+                        yorumlar.append(f"- **{seb} - {mod} Modunda:** Yeni **V5.2.6 sürümünde**, V5.1.23'e kıyasla %{yavaslama:.1f} oranında bir **yavaşlama (süre artışı)** görülmüştür. ⚠️")
     else:
-        yorumlar.append("- Karşılaştırmalı gelişim analizi için sol menüden en az iki farklı BiP versiyonu seçili olmalıdır.")
-        
+        yorumlar.append("- Klasörde kıyaslama yapmak için BiP V5.1.23 veya V5.2.6 dosyalarından biri eksik.")
+
     return "\n".join(yorumlar)
 
 # --- VERİ TARAMA VE YÜKLEME ---
-# Hem .xlsx hem de dönüştürülmüş .csv dosyalarını otomatik tara
-dosya_havuzu = glob.glob("*.xlsx") + glob.glob("*.csv")
+all_files = glob.glob("*.xlsx")
 all_data = []
 
-for f in dosya_havuzu:
-    # Dashboard scriptinin kendisini okumaya çalışmasını engelle
-    if "streamlit" in f.lower() or f.endswith('.py'):
-        continue
+for f in all_files:
     res = veri_isle(f)
     if res is not None:
         all_data.append(res)
 
 if all_data:
-    full_df = pd.concat(all_data, ignore_index=True).dropna(subset=['Yükleme Süresi', 'İndirme Süresi'])
+    full_df = pd.concat(all_data, ignore_index=True)
     
-    # --- YAN MENÜ FİLTRELERİ (SIDEBAR) ---
-    st.sidebar.header("⚙️ Analiz ve Filtre Ayarları")
+    # --- FİLTRELER (SIDEBAR) ---
+    st.sidebar.header("⚙️ Analiz Ayarları")
     
-    # 1. Yük Senaryosu Filtresi (HDPHOTO / SDPHOTO)
-    senaryo_listesi = sorted(full_df['Senaryo'].unique())
-    secilen_senaryo = st.sidebar.selectbox("Yük Senaryosu Seçin:", senaryo_listesi)
-    
-    # 2. Dosya Formatı Filtresi (PNG, JPEG, vb.)
-    uzanti_listesi = sorted(full_df[full_df['Senaryo'] == secilen_senaryo]['Uzantı'].unique())
+    uzanti_listesi = sorted(full_df['Uzantı'].unique())
     secilen_uzanti = st.sidebar.selectbox("Dosya Formatı Seçin:", uzanti_listesi)
     
-    # 3. Sürüm Filtresi
+    # Fotoğraf Modu Filtresi (HD / SD)
+    mevcut_modlar = sorted(full_df['Foto Modu'].unique())
+    secilen_mod = st.sidebar.radio("Fotoğraf Kalitesi Seçin:", mevcut_modlar)
+    
+    # Sürüm Grupları Filtresi
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Sürümler:", mevcut_gruplar, default=mevcut_gruplar)
     
-    # Ana filtreleme maskesi
-    mask = (full_df['Senaryo'] == secilen_senaryo) & \
-           (full_df['Uzantı'] == secilen_uzanti) & \
-           (full_df['Grup'].isin(secilen_gruplar))
-           
-    plot_df = full_df[mask]
-
-    if not plot_df.empty:
-        # Kurumsal Sürüm Renk Paleti (Açık Mavi -> Koyu Mavi Sürüm Tonlaması)
-        color_map = {
-            'BiP (V5.1.23)': '#3498db',     # Canlı Açık Mavi
-            'BiP (V5.2.6)': '#1f3a60'       # Derin Koyu Lacivert
-        }
-
-        # --- GRAFİKLER VE DİNAMİK ANALİZ ALANLARI ---
-        st.markdown(f"### 📍 Seçili İnceleme Modu: **{secilen_senaryo}** Senaryosu > **{secilen_uzanti}** Formatı")
-        
-        # 1. YÜKLEME (UPLOAD) GRAFİĞİ VE YORUMU
-        st.subheader("📤 Yükleme Performansı ve Sürümler Arası Kıyaslama")
-        fig_up = px.bar(
-            plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
-            facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4.5G", "Wi-Fi"], "Grup": ["BiP (V5.1.23)", "BiP (V5.2.6)"]},
-            color_discrete_map=color_map,
-            labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'Uygulama Sürümü'}
-        )
-        st.plotly_chart(fig_up, use_container_width=True)
-        
-        # Her yüke özel dinamik yükleme yorum motoru
-        st.info(f"💬 **{secilen_senaryo} Yükü İçin Otomatik Yükleme Performans Yorumu:**\n" + 
-                ozel_glisim_yorumu(plot_df, 'Yükleme Süresi', 'yükleme'))
-
-        st.divider()
-
-        # 2. İNDİRME (DOWNLOAD) GRAFİĞİ VE YORUMU
-        st.subheader("📥 İndirme Performansı ve Sürümler Arası Kıyaslama")
-        fig_down = px.bar(
-            plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
-            facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4.5G", "Wi-Fi"], "Grup": ["BiP (V5.1.23)", "BiP (V5.2.6)"]},
-            color_discrete_map=color_map,
-            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'Uygulama Sürümü'}
-        )
-        st.plotly_chart(fig_down, use_container_width=True)
-        
-        # Her yüke özel dinamik indirme yorumu
-        st.success(f"💬 **{secilen_senaryo} Yükü İçin Otomatik İndirme Performans Yorumu:**\n" + 
-                   ozel_glisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
-
-        # Ham Veri İnceleme Matrisi
-        with st.expander("📊 Filtrelenmiş Detaylı Ham Veri Matrisi"):
-            st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Grup']), use_container_width=True)
-    else:
-        st.warning("Seçilen kombinasyona (Senaryo + Uzantı + Sürüm) uygun eşleşen test verisi üretilemedi.")
-else:
-    st.error("❌ Klasörde tanımlanan isimlendirme formatına uygun veri dosyası saptanamadı!")
-    st.info("""
-    **Dosyalarınızın şu örnek formatta isimlendirildiğinden emin olun:**
-    - `5.1.23_Bip_4.5G_HDPhoto.csv`
-    - `5.2.6_Bip_Wifi_SDPhoto.xlsx`
-    """)
+    # Şebeke Filtresi
+    mevcut_sebekeler = sorted(full_df['Şebeke'].unique())
+    secilen_sebekeler = st.sidebar.multise

@@ -87,55 +87,9 @@ def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
     yorumlar.append(f"### 🔄 BiP V5.1.23 Sürümünden V5.2.6 Sürümüne Geçiş {metrik_adi.upper()} Analizi")
     
     if not v51_df.empty and not v52_df.empty:
-        # Şebeke ve Fotoğraf Tipi kırılımında analiz yap
         sebekeler = ["4.5G", "Wi-Fi"]
         foto_tipleri = sorted(df['Fotoğraf Tipi'].unique())
         
         for seb in sebekeler:
             for f_tip in foto_tipleri:
-                v51_sub = v51_df[(v51_df['Şebeke'] == seb) & (v51_df['Fotoğraf Tipi'] == f_tip)]
-                v52_sub = v52_df[(v52_df['Şebeke'] == seb) & (v52_df['Fotoğraf Tipi'] == f_tip)]
-                
-                if not v51_sub.empty and not v52_sub.empty:
-                    v51_ort = v51_sub[metrik_kolonu].mean()
-                    v52_ort = v52_sub[metrik_kolonu].mean()
-                    
-                    if pd.notna(v51_ort) and pd.notna(v52_ort):
-                        if v52_ort < v51_ort:
-                            iyilesme = ((v51_ort - v52_ort) / v51_ort) * 100
-                            yorumlar.append(f"- **{seb} - {f_tip} Modunda:** Yeni **V5.2.6 sürümü**, eski sürüme göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** optimizasyon sağlamıştır. ✅")
-                        else:
-                            yavaslama = ((v52_ort - v51_ort) / v51_ort) * 100
-                            yorumlar.append(f"- **{seb} - {f_tip} Modunda:** Yeni **V5.2.6 sürümünde**, eski sürüme kıyasla **%{yavaslama:.1f} oranında bir yavaşlama** (süre artışı) gözlemlenmiştir. ⚠️")
-    else:
-        yorumlar.append("- Veri setinde karşılaştırma yapmak için V5.1.23 veya V5.2.6 sürüm dosyalarından biri eksik.")
-        
-    return "\n".join(yorumlar)
-
-# --- VERİ TARAMA VE YÜKLEME ---
-# Klasördeki tüm excel ve dönüştürülmüş csv dosyalarını tarar
-dosya_havuzu = glob.glob("*.xlsx") + glob.glob("*.csv")
-all_data = []
-
-for f in dosya_havuzu:
-    res = veri_isle(f)
-    if res is not None:
-        all_data.append(res)
-
-if all_data:
-    full_df = pd.concat(all_data, ignore_index=True).dropna(subset=['Yükleme Süresi', 'İndirme Süresi'])
-    
-    # --- FİLTRELER (SIDEBAR) ---
-    st.sidebar.header("⚙️ Analiz Ayarları")
-    
-    # Dosya formatı filtresi
-    uzanti_listesi = sorted(full_df['Uzantı'].unique())
-    secilen_uzanti = st.sidebar.selectbox("Dosya Uzantısı Seçin:", uzanti_listesi)
-    
-    # Fotoğraf Tipi filtresi (HDPhoto / SDPhoto)
-    mevcut_foto_tipleri = sorted(full_df['Fotoğraf Tipi'].unique())
-    secilen_foto_tipi = st.sidebar.selectbox("Fotoğraf Kalite Tipi:", mevcut_foto_tipleri)
-    
-    # Sürüm grupları filtresi
-    mevcut_gruplar = sorted(full_df['Grup'].unique())
-    secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Sürümler:", mevcut_gruplar, default=me
+                v51_sub = v51_

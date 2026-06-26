@@ -25,25 +25,32 @@ def veri_isle(file_path):
             return None
 
         # --- SÜTUN İSİMLERİNİ EŞLEŞTİRME VE TEMİZLEME ---
-        # İlk sütunu 'Test Adı' yapıyoruz
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
-        
-        # Sütun isimlerindeki boşlukları temizle
         df.columns = [str(c).strip() for c in df.columns]
 
-        # İngilizce gelen sütun isimlerini kodun beklediği Türkçe isimlere haritalandırıyoruz
         sutun_haritasi = {
             'Duration': 'Yükleme Süresi',
             'Download_Duration': 'İndirme Süresi'
         }
         df.rename(columns=sutun_haritasi, inplace=True)
 
-        # Kontrol: Eğer sütunlar hala yoksa kullanıcıya detaylı bilgi ver
         gerekli_sutunlar = ['Test Adı', 'Yükleme Süresi', 'İndirme Süresi']
         for col in gerekli_sutunlar:
             if col not in df.columns:
                 st.error(f"⚠️ {os.path.basename(file_path)} içinde gerekli sütun yapısı çözülemedi! Mevcut Sütunlar: {list(df.columns)}")
                 return None
+
+        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME (PyArrow String Hatası Çözümü) ---
+        for col in ['Yükleme Süresi', 'İndirme Süresi']:
+            # Sütundaki değerleri tek tek stringe çevirip temizliyoruz (vektörel kilitleri kırmak için)
+            df[col] = df[col].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
+            df[col] = df[col].str.replace(',', '.')
+            
+            # Önce objeyi sayısal değere zorla, ardından float tipine cast et
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
+
+        # Grafiklerin bozulmaması için sayısal verisi olmayan satırları eliyoruz
+        df = df.dropna(subset=['Yükleme Süresi', 'İndirme Süresi'])
 
         fname = os.path.basename(file_path).lower()
 

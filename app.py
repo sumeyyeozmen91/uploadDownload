@@ -24,18 +24,25 @@ def veri_isle(file_path):
         if df.empty:
             return None
 
-        # --- KRİTİK HATA ÇÖZÜMÜ: Sütun İsimlerini Esnetme ---
-        # İlk sütunun adı ne olursa olsun (büyük/küçük harf, boşluk vb.) onu 'Test Adı' olarak adlandırıyoruz
+        # --- SÜTUN İSİMLERİNİ EŞLEŞTİRME VE TEMİZLEME ---
+        # İlk sütunu 'Test Adı' yapıyoruz
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         
-        # Diğer sütun isimlerini temizle (Parantez içi birimleri uçur)
-        df.columns = [str(c).split(' (')[0].strip() for c in df.columns]
+        # Sütun isimlerindeki boşlukları temizle
+        df.columns = [str(c).strip() for c in df.columns]
 
-        # Gerekli temel sütunların varlığını kontrol et
+        # İngilizce gelen sütun isimlerini kodun beklediği Türkçe isimlere haritalandırıyoruz
+        sutun_haritasi = {
+            'Duration': 'Yükleme Süresi',
+            'Download_Duration': 'İndirme Süresi'
+        }
+        df.rename(columns=sutun_haritasi, inplace=True)
+
+        # Kontrol: Eğer sütunlar hala yoksa kullanıcıya detaylı bilgi ver
         gerekli_sutunlar = ['Test Adı', 'Yükleme Süresi', 'İndirme Süresi']
         for col in gerekli_sutunlar:
             if col not in df.columns:
-                st.error(f"⚠️ {os.path.basename(file_path)} içinde '{col}' sütunu bulunamadı! Mevcut Sütunlar: {list(df.columns)}")
+                st.error(f"⚠️ {os.path.basename(file_path)} içinde gerekli sütun yapısı çözülemedi! Mevcut Sütunlar: {list(df.columns)}")
                 return None
 
         fname = os.path.basename(file_path).lower()
@@ -76,7 +83,7 @@ def veri_isle(file_path):
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
 
-        # Dosya uzantısı ve boyut bilgisini 'Test Adı' sütunundan güvenli bir şekilde al
+        # Dosya uzantısı ve boyut bilgisini 'Test Adı' sütunundan al
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
         df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
 
@@ -112,20 +119,15 @@ def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
         if pd.notna(v_eski_ort) and pd.notna(v_yeni_ort):
             if v_yeni_ort < v_eski_ort:
                 iyilesme = ((v_eski_ort - v_yeni_ort) / v_eski_ort) * 100
-                yorumlar.append(f"- **{add_bold(seb)} Şebekesinde:** Yeni **V{v_yeni} sürümü**, eski V{v_eski}'e göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
+                yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümü**, eski V{v_eski}'e göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
             else:
                 yavaslama = ((v_yeni_ort - v_eski_ort) / v_eski_ort) * 100
                 yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümünde**, V{v_eski}'e kıyasla %{yavaslama:.1f} oranında bir **yavaşlama (süre artışı)** görülmüştür. ⚠️")
 
     return "\n".join(yorumlar)
 
-def add_bold(text):
-    return f"{text}"
-
 # --- VERİ TARAMA VE YÜKLEME ---
-# Büyük/küçük harf duyarlılığını azaltmak için hem .xlsx hem de .XLSX taratıyoruz
 all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
-# Çift kayıtları engellemek için set yapıyoruz
 all_files = list(set(all_files))
 
 all_data = []

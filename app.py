@@ -21,7 +21,10 @@ def veri_isle(file_path):
 
         df = pd.read_excel(file_path)
 
-        if df.empty:
+        # --- KRİTİK KORUMA: BOŞ DOSYA KONTROLÜ ---
+        # Eğer dosya boşsa veya hiç sütun yoksa KeyError: 0 almamak için dosyayı es geçiyoruz
+        if df.empty or len(df.columns) == 0:
+            st.warning(f"⚠️ {os.path.basename(file_path)} dosyası boş veya sütun içermiyor, atlandı.")
             return None
 
         # --- SÜTUN İSİMLERİNİ EŞLEŞTİRME VE TEMİZLEME ---
@@ -31,22 +34,23 @@ def veri_isle(file_path):
         # Dosyanızdaki sütun adını 'İndirme Süresi' olarak haritalandırıyoruz
         sutun_haritasi = {
             'Download_Duration': 'İndirme Süresi',
-            'Duration': 'İndirme Süresi'  # Eğer bazı dosyalarda sadece Duration geçiyorsa
+            'Duration': 'İndirme Süresi'
         }
         df.rename(columns=sutun_haritasi, inplace=True)
 
         if 'İndirme Süresi' not in df.columns:
-            st.error(f"⚠️ {os.path.basename(file_path)} içinde İndirme Süresi (Download_Duration) sütunu bulunamadı!")
+            st.warning(f"⚠️ {os.path.basename(file_path)} içinde İndirme Süresi sütunu bulunamadı, atlandı.")
             return None
 
         # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
-        # Hücrelerde metinsel ifadeler veya Arrow String kilitleri varsa satır bazında temizliyoruz
         df['İndirme Süresi'] = df['İndirme Süresi'].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
         df['İndirme Süresi'] = df['İndirme Süresi'].str.replace(',', '.')
         df['İndirme Süresi'] = pd.to_numeric(df['İndirme Süresi'], errors='coerce').astype(float)
 
         # Sayısal verisi olmayan boş satırları eliyoruz
         df = df.dropna(subset=['İndirme Süresi'])
+        if df.empty:
+            return None
 
         fname = os.path.basename(file_path).lower()
 
@@ -92,7 +96,8 @@ def veri_isle(file_path):
 
         return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
-        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
+        # Tek bir dosya bozuksa tüm uygulamanın çökmesini engelliyoruz
+        st.warning(f"⚠️ {os.path.basename(file_path)} işlenirken beklenmeyen hata, atlandı: {e}")
         return None
 
 # --- SÜRÜM GELİŞİM YORUM MOTORU ---

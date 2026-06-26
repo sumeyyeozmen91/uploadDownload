@@ -1,67 +1,66 @@
-import pandas as pd
-import numpy as np
-
-# 1. Dosya Yolları ve İsimlerinin Tanımlanması (Yeni Dosya Yapısına Göre)
-files = {
-    'BiP_4.5G': 'Bip_4.5G_new.xlsx - Test Verileri.csv',
-    'BiP_WiFi': 'Bip_Wifi_new.xlsx - Test Verileri.csv',
-    'WhatsApp_4.5G': 'Wa_4.5G.xlsx - Sıralı Test Verileri.csv',
-    'WhatsApp_WiFi': 'Wa_Wifi.xlsx - Veri Listesi.csv'
-}
-
-def clean_and_load(file_path, app_name, network_type):
+def veri_isle(file_path):
     try:
-        df = pd.read_csv(file_path)
-        
-        # Sütun isimlerindeki boşlukları temizleme
-        df.columns = [c.strip() for c in df.columns]
-        
-        # İlgili sütunları seçme ve isimlendirme
-        # Not: Sütun isimleri dosyalara göre farklılık gösterebilir (örn: 'Yükleme Süresi' veya 'Yükleme Süresi (ms)')
-        upload_col = [c for c in df.columns if 'Yükleme Süresi' in c][0]
-        download_col = [c for c in df.columns if 'İndirme Süresi' in c][0]
-        
-        df = df.rename(columns={
-            'Test Adı': 'Test_Adi',
-            upload_col: 'Upload_ms',
-            download_col: 'Download_ms'
-        })
-        
-        # Sayısal değerleri temizleme ve dönüştürme
-        df['Upload_ms'] = pd.to_numeric(df['Upload_ms'], errors='coerce')
-        df['Download_ms'] = pd.to_numeric(df['Download_ms'], errors='coerce')
-        
-        # Uygulama ve Şebeke etiketlerini ekleme
-        df['Uygulama'] = app_name
-        df['Sebeke'] = network_type
-        
-        return df[['Test_Adi', 'Upload_ms', 'Download_ms', 'Uygulama', 'Sebeke']]
+        if not os.path.exists(file_path):
+            return None
+
+        df = pd.read_excel(file_path)
+
+        df.columns = [str(c).split(' (')[0].strip() for c in df.columns]
+
+        fname = os.path.basename(file_path).replace(".xlsx", "")
+
+        # Örnek:
+        # 5.1.23_Bip_4.5G_HDPhoto
+
+        parts = fname.split("_")
+
+        if len(parts) != 4:
+            return None
+
+        version = parts[0]          # 5.1.23
+        app = parts[1]              # Bip
+        network = parts[2]          # 4.5G / Wifi
+        photo_type = parts[3]       # HDPhoto / SDPhoto
+
+        if network.lower() == "wifi":
+            network = "Wi-Fi"
+        elif "4.5" in network:
+            network = "4.5G"
+
+        df["Uygulama"] = "BiP"
+        df["Versiyon"] = version
+        df["Şebeke"] = network
+        df["Fotoğraf"] = photo_type
+
+        if version.startswith("5.1"):
+            grup = "BiP 5.1.23"
+        elif version.startswith("5.2"):
+            grup = "BiP 5.2.6"
+        else:
+            grup = version
+
+        df["Grup"] = grup
+
+        df["Uzantı"] = df["Test Adı"].apply(
+            lambda x: str(x).split(".")[-1].upper()
+        )
+
+        df["Boyut"] = df["Test Adı"].apply(
+            lambda x: str(x).split(".")[0]
+        )
+
+        return df[[
+            "Test Adı",
+            "Uzantı",
+            "Boyut",
+            "Yükleme Süresi",
+            "İndirme Süresi",
+            "Şebeke",
+            "Fotoğraf",
+            "Versiyon",
+            "Grup"
+        ]]
+
     except Exception as e:
-        print(f"Hata ({file_path}): {e}")
-        return pd.DataFrame()
-
-# 2. Tüm Verilerin Yüklenmesi ve Birleştirilmesi
-all_data = []
-for key, file_name in files.items():
-    app, network = key.split('_')
-    # Şebeke ismini daha okunabilir yapalım
-    network_label = '4.5G' if network == '4.5G' else 'Wi-Fi'
-    df_cleaned = clean_and_load(file_name, app, network_label)
-    if not df_cleaned.empty:
-        all_data.append(df_cleaned)
-
-combined_df = pd.concat(all_data, ignore_index=True)
-
-# 3. 4.5G ve Wi-Fi Karşılaştırmalı Performans Analizi (Özet Tablo)
-print("=== 4.5G ve Wi-Fi Genel Performans Karşılaştırması (Ortalama ms) ===")
-summary = combined_df.groupby(['Uygulama', 'Sebeke'])[['Download_ms', 'Upload_ms']].mean().round(2)
-print(summary)
-print("\n")
-
-# 4. Dosya Boyutlarına Göre Detaylı Karşılaştırma (Opsiyonel)
-# Test adından dosya boyutunu (örn: 10MB, 40MB) çıkarma
-combined_df['Dosya_Boyutu'] = combined_df['Test_Adi'].str.extract(r'(\d+MB)')
-
-print("=== Dosya Boyutlarına Göre Detaylı Karşılaştırma (Ortalama ms) ===")
-detailed_summary = combined_df.groupby(['Dosya_Boyutu', 'Uygulama', 'Sebeke'])[['Download_ms', 'Upload_ms']].mean().round(2)
-print(detailed_summary)
+        st.error(f"{file_path} okunamadı : {e}")
+        return None

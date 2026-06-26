@@ -10,8 +10,8 @@ st.set_page_config(page_title="BiP Versiyon Karşılaştırma Merkezi", layout="
 # --- BAŞLIK VE AÇIKLAMA ---
 st.title("🚀 BiP Versiyon İndirme Performans Analizi")
 st.markdown("""
-    Bu panelde BiP uygulamasının iki farklı sürümü arasındaki **İndirme (Download)** süreleri kıyaslanır:
-    * **BiP (V5.1.23) vs BiP (V5.2.6)**
+    Bu panelde BiP uygulamasının versiyon gelişimi analiz edilir:
+    * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki indirme performans farkları ve iyileşme oranları.
 """)
 
 def veri_isle(file_path):
@@ -21,36 +21,35 @@ def veri_isle(file_path):
 
         df = pd.read_excel(file_path)
 
-        # --- KRİTİK KORUMA: BOŞ DOSYA KONTROLÜ ---
-        # Eğer dosya boşsa veya hiç sütun yoksa KeyError: 0 almamak için dosyayı es geçiyoruz
-        if df.empty or len(df.columns) == 0:
-            st.warning(f"⚠️ {os.path.basename(file_path)} dosyası boş veya sütun içermiyor, atlandı.")
+        if df.empty:
             return None
 
         # --- SÜTUN İSİMLERİNİ EŞLEŞTİRME VE TEMİZLEME ---
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Dosyanızdaki sütun adını 'İndirme Süresi' olarak haritalandırıyoruz
         sutun_haritasi = {
             'Download_Duration': 'İndirme Süresi',
-            'Duration': 'İndirme Süresi'
+            'Duration': 'İndirme Süresi'  # Sadece Duration yazan dosyalar için alternatif yedek
         }
         df.rename(columns=sutun_haritasi, inplace=True)
 
-        if 'İndirme Süresi' not in df.columns:
-            st.warning(f"⚠️ {os.path.basename(file_path)} içinde İndirme Süresi sütunu bulunamadı, atlandı.")
-            return None
+        gerekli_sutunlar = ['Test Adı', 'İndirme Süresi']
+        for col in gerekli_sutunlar:
+            if col not in df.columns:
+                st.error(f"⚠️ {os.path.basename(file_path)} içinde gerekli sütun yapısı çözülemedi! Mevcut Sütunlar: {list(df.columns)}")
+                return None
 
-        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
+        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME (PyArrow String Hatası Çözümü) ---
+        # Sütundaki değerleri tek tek stringe çevirip temizliyoruz (vektörel kilitleri kırmak için)
         df['İndirme Süresi'] = df['İndirme Süresi'].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
         df['İndirme Süresi'] = df['İndirme Süresi'].str.replace(',', '.')
+        
+        # Önce objeyi sayısal değere zorla, ardından float tipine cast et
         df['İndirme Süresi'] = pd.to_numeric(df['İndirme Süresi'], errors='coerce').astype(float)
 
-        # Sayısal verisi olmayan boş satırları eliyoruz
+        # Grafiklerin bozulmaması için indirme verisi olmayan satırları eliyoruz
         df = df.dropna(subset=['İndirme Süresi'])
-        if df.empty:
-            return None
 
         fname = os.path.basename(file_path).lower()
 
@@ -96,8 +95,7 @@ def veri_isle(file_path):
 
         return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
-        # Tek bir dosya bozuksa tüm uygulamanın çökmesini engelliyoruz
-        st.warning(f"⚠️ {os.path.basename(file_path)} işlenirken beklenmeyen hata, atlandı: {e}")
+        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
 
 # --- SÜRÜM GELİŞİM YORUM MOTORU ---
@@ -170,7 +168,8 @@ if all_data:
         if len(mevcut_gruplar) > 0: color_map[mevcut_gruplar[0]] = '#3498db'
         if len(mevcut_gruplar) > 1: color_map[mevcut_gruplar[1]] = '#1f3a60'
 
-        # --- TEK GRAFİK: İNDİRME (DOWNLOAD) ---
+        # --- GRAFİK ---
+        # SADECE İNDİRME (DOWNLOAD)
         st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
         fig_down = px.bar(
             plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
@@ -180,11 +179,8 @@ if all_data:
             labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
         )
         st.plotly_chart(fig_down, use_container_width=True)
-        
-        # İndirme Performans Analiz Özeti
         st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
 
-        # Ham Veri Tablosu
         with st.expander("📊 Filtrelenmiş Veri Tablosu"):
             st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Grup']), use_container_width=True)
     else:

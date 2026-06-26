@@ -27,12 +27,27 @@ def veri_isle(file_path):
         fname = os.path.basename(file_path).lower()
 
         # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
-        # Örn: 5.1.23_bip_4.5g_hdphoto.xlsx -> parts[0]="5.1.23", parts[2]="4.5g"
+        # Örn: 5.1.23_bip_4.5g_hdphoto.xlsx
         if "_" in fname and "bip" in fname:
-            parts = fname.split('_')
-            version = parts[0]  # "5.1.23" veya "5.2.6"
+            # Uzantıyı atıp alt çizgilere bölüyoruz
+            clean_name = fname.replace(".xlsx", "").replace(".csv", "")
+            parts = clean_name.split('_')
+            
+            version = parts[0]   # "5.1.23" veya "5.2.6"
             app_name = "BiP"
-            net_raw = parts[2].replace(".xlsx", "").replace(".csv", "")
+            net_raw = parts[2]   # "4.5g" veya "wifi"
+            
+            # Son parçadaki kalite ve türü ayıkla (örn: "hdphoto")
+            type_raw = parts[3] 
+            if "hd" in type_raw:
+                medya_kalitesi = "HD"
+                medya_turu = type_raw.replace("hd", "").capitalize() # "Photo"
+            elif "sd" in type_raw:
+                medya_kalitesi = "SD"
+                medya_turu = type_raw.replace("sd", "").capitalize() # "Photo"
+            else:
+                medya_kalitesi = "Genel"
+                medya_turu = type_raw.capitalize()
         else:
             return None  # BiP formatına uymayan dosyaları es geç
 
@@ -47,12 +62,14 @@ def veri_isle(file_path):
         df['Versiyon'] = version
         df['Şebeke'] = network
         df['Grup'] = f"BiP (V{version})"
+        df['Medya Kalitesi'] = medya_kalitesi
+        df['Medya Türü'] = medya_turu
 
-        # Dosya uzantısı ve boyutu çıkarma
+        # Dosya içi metrikler için ek bilgi (isteğe bağlı grafik kırılımı için)
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
         df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
 
-        return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup']]
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
         st.error(f"⚠️ {file_path} işlenirken hata oluştu: {e}")
         return None
@@ -108,14 +125,24 @@ if all_data:
     # --- FİLTRELER (SIDEBAR) ---
     st.sidebar.header("⚙️ Analiz Ayarları")
 
-    uzanti_listesi = sorted(full_df['Uzantı'].unique())
-    secilen_uzanti = st.sidebar.selectbox("Dosya Formatı Seçin:", uzanti_listesi)
+    # Kalite Filtresi (HD / SD)
+    kalite_listesi = sorted(full_df['Medya Kalitesi'].unique())
+    secilen_kalite = st.sidebar.selectbox("Medya Kalitesi Seçin:", kalite_listesi)
 
+    # Tür Filtresi (Photo vb.)
+    tur_listesi = sorted(full_df['Medya Türü'].unique())
+    secilen_tur = st.sidebar.selectbox("Medya Türü Seçin:", tur_listesi)
+
+    # Gösterilecek Versiyon Grupları
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
 
-    # Veriyi filtrele
-    plot_df = full_df[(full_df['Uzantı'] == secilen_uzanti) & (full_df['Grup'].isin(secilen_gruplar))]
+    # Veriyi yeni kriterlere göre filtrele
+    plot_df = full_df[
+        (full_df['Medya Kalitesi'] == secilen_kalite) & 
+        (full_df['Medya Türü'] == secilen_tur) & 
+        (full_df['Grup'].isin(secilen_gruplar))
+    ]
 
     if not plot_df.empty:
         # Renk Düzeni (Eski sürüm açık mavi, yeni sürüm koyu lacivert)
@@ -126,11 +153,11 @@ if all_data:
         # --- GRAFİKLER VE DETAYLI YORUMLAR ---
 
         # 1. YÜKLEME (UPLOAD)
-        st.subheader(f"📤 {secilen_uzanti} Dosyaları - Yükleme Performansı Kıyaslaması")
+        st.subheader(f"📤 {secilen_kalite} {secilen_tur} Dosyaları - Yükleme Performansı Kıyaslaması")
         fig_up = px.bar(
             plot_df, x='Boyut', y='Yükleme Süresi', color='Grup',
             facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4.5G", "Wi-Fi"], "Grup": mevcut_gruplar},
+            category_orders={"Şebeke": ["4.5G", "Wi-Fi"], "Grup": mevcut_gruplar},
             color_discrete_map=color_map,
             labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
         )
@@ -142,11 +169,11 @@ if all_data:
         st.divider()
 
         # 2. İNDİRME (DOWNLOAD)
-        st.subheader(f"📥 {secilen_uzanti} Dosyaları - İndirme Performansı Kıyaslaması")
+        st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
         fig_down = px.bar(
             plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
             facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["3G", "4.5G", "Wi-Fi"], "Grup": mevcut_gruplar},
+            category_orders={"Şebeke": ["4.5G", "Wi-Fi"], "Grup": mevcut_gruplar},
             color_discrete_map=color_map,
             labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
         )
@@ -162,8 +189,9 @@ if all_data:
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı.")
 else:
-    st.error("❌ Klasörde eşleşen formatta BiP .xlsx dosyası bulunamadı!")
+    st.error("❌ Klasörde belirtilen formatta BiP .xlsx dosyası bulunamadı!")
     st.info("""
-    **Beklenen dosya ismi formatı:**
-    `5.1.23_Bip_4.5G_HDPhoto.xlsx` veya `5.2.6_Bip_Wifi_SDPhoto.xlsx` gibi olmalıdır.
+    **Mevcut ve desteklenen dosya isimleriniz:**
+    - `5.1.23_Bip_4.5G_HDPhoto.xlsx`
+    - `5.2.6_Bip_Wifi_SDPhoto.xlsx` vb.
     """)

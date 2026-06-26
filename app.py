@@ -21,15 +21,27 @@ def veri_isle(file_path):
 
         df = pd.read_excel(file_path)
 
-        # Sütun isimlerini temizle
+        if df.empty:
+            return None
+
+        # --- KRİTİK HATA ÇÖZÜMÜ: Sütun İsimlerini Esnetme ---
+        # İlk sütunun adı ne olursa olsun (büyük/küçük harf, boşluk vb.) onu 'Test Adı' olarak adlandırıyoruz
+        df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
+        
+        # Diğer sütun isimlerini temizle (Parantez içi birimleri uçur)
         df.columns = [str(c).split(' (')[0].strip() for c in df.columns]
+
+        # Gerekli temel sütunların varlığını kontrol et
+        gerekli_sutunlar = ['Test Adı', 'Yükleme Süresi', 'İndirme Süresi']
+        for col in gerekli_sutunlar:
+            if col not in df.columns:
+                st.error(f"⚠️ {os.path.basename(file_path)} içinde '{col}' sütunu bulunamadı! Mevcut Sütunlar: {list(df.columns)}")
+                return None
 
         fname = os.path.basename(file_path).lower()
 
         # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
-        # Örn: 5.1.23_bip_4.5g_hdphoto.xlsx
         if "_" in fname and "bip" in fname:
-            # Uzantıyı atıp alt çizgilere bölüyoruz
             clean_name = fname.replace(".xlsx", "").replace(".csv", "")
             parts = clean_name.split('_')
             
@@ -37,19 +49,18 @@ def veri_isle(file_path):
             app_name = "BiP"
             net_raw = parts[2]   # "4.5g" veya "wifi"
             
-            # Son parçadaki kalite ve türü ayıkla (örn: "hdphoto")
             type_raw = parts[3] 
             if "hd" in type_raw:
                 medya_kalitesi = "HD"
-                medya_turu = type_raw.replace("hd", "").capitalize() # "Photo"
+                medya_turu = type_raw.replace("hd", "").capitalize()
             elif "sd" in type_raw:
                 medya_kalitesi = "SD"
-                medya_turu = type_raw.replace("sd", "").capitalize() # "Photo"
+                medya_turu = type_raw.replace("sd", "").capitalize()
             else:
                 medya_kalitesi = "Genel"
                 medya_turu = type_raw.capitalize()
         else:
-            return None  # BiP formatına uymayan dosyaları es geç
+            return None
 
         # Şebeke ismini standartlaştır
         if "3g" in net_raw: network = "3G"
@@ -65,13 +76,13 @@ def veri_isle(file_path):
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
 
-        # Dosya içi metrikler için ek bilgi (isteğe bağlı grafik kırılımı için)
+        # Dosya uzantısı ve boyut bilgisini 'Test Adı' sütunundan güvenli bir şekilde al
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
         df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
 
         return df[['Test Adı', 'Uzantı', 'Boyut', 'Yükleme Süresi', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
-        st.error(f"⚠️ {file_path} işlenirken hata oluştu: {e}")
+        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
 
 # --- SÜRÜM GELİŞİM YORUM MOTORU ---
@@ -80,12 +91,10 @@ def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
         return "Yorumlanacak veri bulunamadı."
 
     yorumlar = []
-    
-    # Mevcut verideki sürümleri tespit et ve sırala (Örn: ['5.1.23', '5.2.6'])
     bip_versions = sorted(list(set(df['Versiyon'].dropna().astype(str))))
     
     if len(bip_versions) < 2:
-        return "Karşılaştırma yapabilmek için klasörde en az iki farklı BiP sürümüne ait veri olmalıdır."
+        return "Karşılaştırma yapabilmek için filtrelerde en az iki farklı BiP sürümü seçili olmalıdır."
         
     v_eski = bip_versions[0]
     v_yeni = bip_versions[1]
@@ -103,17 +112,23 @@ def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
         if pd.notna(v_eski_ort) and pd.notna(v_yeni_ort):
             if v_yeni_ort < v_eski_ort:
                 iyilesme = ((v_eski_ort - v_yeni_ort) / v_eski_ort) * 100
-                yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümü**, eski V{v_eski}'e göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
+                yorumlar.append(f"- **{add_bold(seb)} Şebekesinde:** Yeni **V{v_yeni} sürümü**, eski V{v_eski}'e göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
             else:
                 yavaslama = ((v_yeni_ort - v_eski_ort) / v_eski_ort) * 100
                 yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümünde**, V{v_eski}'e kıyasla %{yavaslama:.1f} oranında bir **yavaşlama (süre artışı)** görülmüştür. ⚠️")
 
     return "\n".join(yorumlar)
 
-# --- VERİ TARAMA VE YÜKLEME ---
-all_files = glob.glob("*.xlsx")
-all_data = []
+def add_bold(text):
+    return f"{text}"
 
+# --- VERİ TARAMA VE YÜKLEME ---
+# Büyük/küçük harf duyarlılığını azaltmak için hem .xlsx hem de .XLSX taratıyoruz
+all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
+# Çift kayıtları engellemek için set yapıyoruz
+all_files = list(set(all_files))
+
+all_data = []
 for f in all_files:
     res = veri_isle(f)
     if res is not None:
@@ -125,19 +140,15 @@ if all_data:
     # --- FİLTRELER (SIDEBAR) ---
     st.sidebar.header("⚙️ Analiz Ayarları")
 
-    # Kalite Filtresi (HD / SD)
     kalite_listesi = sorted(full_df['Medya Kalitesi'].unique())
     secilen_kalite = st.sidebar.selectbox("Medya Kalitesi Seçin:", kalite_listesi)
 
-    # Tür Filtresi (Photo vb.)
     tur_listesi = sorted(full_df['Medya Türü'].unique())
     secilen_tur = st.sidebar.selectbox("Medya Türü Seçin:", tur_listesi)
 
-    # Gösterilecek Versiyon Grupları
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
 
-    # Veriyi yeni kriterlere göre filtrele
     plot_df = full_df[
         (full_df['Medya Kalitesi'] == secilen_kalite) & 
         (full_df['Medya Türü'] == secilen_tur) & 
@@ -145,13 +156,11 @@ if all_data:
     ]
 
     if not plot_df.empty:
-        # Renk Düzeni (Eski sürüm açık mavi, yeni sürüm koyu lacivert)
         color_map = {}
         if len(mevcut_gruplar) > 0: color_map[mevcut_gruplar[0]] = '#3498db'
         if len(mevcut_gruplar) > 1: color_map[mevcut_gruplar[1]] = '#1f3a60'
 
-        # --- GRAFİKLER VE DETAYLI YORUMLAR ---
-
+        # --- GRAFİKLER ---
         # 1. YÜKLEME (UPLOAD)
         st.subheader(f"📤 {secilen_kalite} {secilen_tur} Dosyaları - Yükleme Performansı Kıyaslaması")
         fig_up = px.bar(
@@ -162,8 +171,6 @@ if all_data:
             labels={'Yükleme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
         )
         st.plotly_chart(fig_up, use_container_width=True)
-
-        # Yükleme Gelişim Yorumu
         st.info(surum_gelisim_yorumu(plot_df, 'Yükleme Süresi', 'yükleme'))
 
         st.divider()
@@ -178,20 +185,11 @@ if all_data:
             labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
         )
         st.plotly_chart(fig_down, use_container_width=True)
-
-        # İndirme Gelişim Yorumu
         st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
 
-        # Ham Veri Tablosu
         with st.expander("📊 Filtrelenmiş Veri Tablosu"):
             st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Grup']), use_container_width=True)
-
     else:
-        st.warning("Seçilen kriterlere uygun veri bulunamadı.")
+        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:
-    st.error("❌ Klasörde belirtilen formatta BiP .xlsx dosyası bulunamadı!")
-    st.info("""
-    **Mevcut ve desteklenen dosya isimleriniz:**
-    - `5.1.23_Bip_4.5G_HDPhoto.xlsx`
-    - `5.2.6_Bip_Wifi_SDPhoto.xlsx` vb.
-    """)
+    st.error("❌ Klasörde geçerli veri içeren BiP .xlsx dosyası bulunamadı!")

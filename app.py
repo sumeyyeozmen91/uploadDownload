@@ -28,7 +28,7 @@ def veri_isle(file_path):
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Sadece Download_Duration sütununu hedef alıyoruz (Duration sütunu yok sayılıyor)
+        # Sadece Download_Duration sütununu hedef alıyoruz
         sutun_haritasi = {
             'Download_Duration': 'İndirme Süresi'
         }
@@ -40,15 +40,12 @@ def veri_isle(file_path):
                 st.error(f"⚠️ {os.path.basename(file_path)} içinde gerekli sütun yapısı çözülemedi! Mevcut Sütunlar: {list(df.columns)}")
                 return None
 
-        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME (PyArrow String Hatası Çözümü) ---
-        # Değerleri tek tek stringe çevirip temizliyoruz (vektörel kilitleri kırmak için)
+        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
         df['İndirme Süresi'] = df['İndirme Süresi'].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
         df['İndirme Süresi'] = df['İndirme Süresi'].str.replace(',', '.')
-        
-        # Önce objeyi sayısal değere zorla, ardından float tipine cast et
         df['İndirme Süresi'] = pd.to_numeric(df['İndirme Süresi'], errors='coerce').astype(float)
 
-        # Grafiklerin bozulmaması için indirme verisi olmayan satırları eliyoruz
+        # İndirme verisi olmayan satırları eliyoruz
         df = df.dropna(subset=['İndirme Süresi'])
 
         fname = os.path.basename(file_path).lower()
@@ -58,9 +55,9 @@ def veri_isle(file_path):
             clean_name = fname.replace(".xlsx", "").replace(".csv", "")
             parts = clean_name.split('_')
             
-            version = parts[0]   # "5.1.23" veya "5.2.6"
+            version = parts[0]   # "5.1.23" or "5.2.6"
             app_name = "BiP"
-            net_raw = parts[2]   # "4.5g" veya "wifi"
+            net_raw = parts[2]   # "4.5g" or "wifi"
             
             type_raw = parts[3] 
             if "hd" in type_raw:
@@ -89,7 +86,6 @@ def veri_isle(file_path):
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
 
-        # Dosya uzantısı ve boyut bilgisini 'Test Adı' sütunundan al
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
         df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
 
@@ -157,13 +153,21 @@ if all_data:
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
 
+    # Temel Filtreleme
     plot_df = full_df[
         (full_df['Medya Kalitesi'] == secilen_kalite) & 
         (full_df['Medya Türü'] == secilen_tur) & 
         (full_df['Grup'].isin(secilen_gruplar))
-    ]
+    ].copy()
 
     if not plot_df.empty:
+        # --- DİNAMİK KOŞUM SAYISI (SIRA NO) ATAMA ---
+        # Her Şebeke ve Versiyon (Grup) kırılımında satırlara 1'den başlayan sıra numarası veriyoruz.
+        # Böylece grafik X ekseninde boyut yerine "1. Koşum", "2. Koşum" gibi sıralı veriler görünecektir.
+        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Boyut']) # İsteğe bağlı olarak kronolojik sıralayabilirsiniz
+        plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
+        plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
+
         color_map = {}
         if len(mevcut_gruplar) > 0: color_map[mevcut_gruplar[0]] = '#3498db'
         if len(mevcut_gruplar) > 1: color_map[mevcut_gruplar[1]] = '#1f3a60'
@@ -171,17 +175,21 @@ if all_data:
         # --- GRAFİK: İNDİRME (DOWNLOAD) ---
         st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
         fig_down = px.bar(
-            plot_df, x='Boyut', y='İndirme Süresi', color='Grup',
+            plot_df, x='Koşum Sayısı', y='İndirme Süresi', color='Grup',
             facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={"Şebeke": ["4.5G", "Wi-Fi"], "Grup": mevcut_gruplar},
+            category_orders={
+                "Şebeke": ["4.5G", "Wi-Fi"], 
+                "Grup": mevcut_gruplar,
+                "Koşum Sayısı": sorted(plot_df['Koşum Sayısı'].unique(), key=lambda x: int(x.split('.')[0]))
+            },
             color_discrete_map=color_map,
-            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü'}
+            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü', 'Koşum Sayısı': 'Koşum Numarası'}
         )
         st.plotly_chart(fig_down, use_container_width=True)
         st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
 
         with st.expander("📊 Filtrelenmiş Veri Tablosu"):
-            st.dataframe(plot_df.sort_values(['Şebeke', 'Boyut', 'Grup']), use_container_width=True)
+            st.dataframe(plot_df.sort_values(['Şebeke', 'Koşum Sayısı', 'Grup']), use_container_width=True)
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:

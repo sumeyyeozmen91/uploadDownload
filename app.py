@@ -5,10 +5,10 @@ import os
 import glob
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP Versiyon Karşılaştırma Merkezi", layout="wide")
+st.set_page_config(page_title="BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP Versiyon İndirme Performans Analizi")
+st.title("🚀 BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması")
 st.markdown("""
     Bu panelde BiP uygulamasının versiyon gelişimi analiz edilir:
     * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki indirme performans farkları ve iyileşme oranları.
@@ -162,9 +162,7 @@ if all_data:
 
     if not plot_df.empty:
         # --- DİNAMİK KOŞUM SAYISI (SIRA NO) ATAMA ---
-        # Her Şebeke ve Versiyon (Grup) kırılımında satırlara 1'den başlayan sıra numarası veriyoruz.
-        # Böylece grafik X ekseninde boyut yerine "1. Koşum", "2. Koşum" gibi sıralı veriler görünecektir.
-        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Boyut']) # İsteğe bağlı olarak kronolojik sıralayabilirsiniz
+        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Boyut'])
         plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
         plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
 

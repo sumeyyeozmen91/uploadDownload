@@ -94,4 +94,57 @@ def veri_isle(file_path):
         df['Şebeke'] = network
         df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
         df['Medya Kalitesi'] = medya_kalitesi
-        df
+        df['Medya Türü'] = medya_turu
+
+        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
+        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
+
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+    except Exception as e:
+        return None
+
+# --- GELİŞMİŞ 3'LÜ KARŞILAŞTIRMA MOTORU ---
+def surum_gelisim_yorumu(df, metrik_kolonu):
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    
+    # Grupların ortalamalarını şebeke bazlı hesapla
+    stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
+    
+    yorumlar.append("### 📊 3'lü Performans Karşılaştırma Analiz Raporu")
+    
+    for seb in sorted(df['Şebeke'].unique()):
+        if seb in stats.index:
+            yorumlar.append(f"\n**📍 {seb} Şebekesi Altındaki Durum:**")
+            row = stats.loc[seb]
+            
+            bip51 = row.get('BiP (V5.1.23)', None)
+            bip52 = row.get('BiP (V5.2.6)', None)
+            wa = row.get('WhatsApp', None)
+            
+            # 1. BiP Sürüm Gelişimi Kıyası
+            if pd.notna(bip51) and pd.notna(bip52):
+                if bip52 < bip51:
+                    degisim = ((bip51 - bip52) / bip51) * 100
+                    yorumlar.append(f"- **BiP Gelişimi:** Yeni V5.2.6 sürümü, eski V5.1.23 sürümüne göre **%{degisim:.1f} daha hızlıdır.** (Optimizasyon Başarılı) ✅")
+                else:
+                    degisim = ((bip52 - bip51) / bip51) * 100
+                    yorumlar.append(f"- **BiP Gelişimi:** Yeni V5.2.6 sürümünde eski sürüme göre **%{degisim:.1f} oranında bir yavaşlama** saptanmıştır. ⚠️")
+            
+            # 2. WhatsApp ile 3'lü Liderlik Yarışı
+            mevcut_ortalamalar = [(k, v) for k, v in row.items() if pd.notna(v)]
+            if mevcut_ortalamalar:
+                mevcut_ortalamalar.sort(key=lambda x: x[1])
+                lider_grup, lider_sure = mevcut_ortalamalar[0]
+                yorumlar.append(f"- **3'lü Rekabet:** En efektif indirme süresi **{int(lider_sure)} ms** ile **{lider_grup}** tarafından elde edilmiştir. 🚀")
+                
+                podyum = " > ".join([f"**{g}** ({int(s)} ms)" for g, s in mevcut_ortalamalar])
+                yorumlar.append(f"- **Hız Sıralaması (Hızlıdan Yavaşa):** {podyum}")
+                
+    return "\n".join(yorumlar)
+
+# --- VERİ TARAMA VE YÜKLEME ---
+all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
+all_files = list(set(all_files))

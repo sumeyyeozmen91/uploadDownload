@@ -94,26 +94,4 @@ def veri_isle(file_path):
         df['Şebeke'] = network
         df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
         df['Medya Kalitesi'] = medya_kalitesi
-        df['Medya Türü'] = medya_turu
-
-        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
-        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
-
-        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
-    except Exception as e:
-        return None
-
-# --- GELİŞMİŞ 3'LÜ KARŞILAŞTIRMA MOTORU ---
-def surum_gelisim_yorumu(df, metrik_kolonu):
-    if df.empty:
-        return "Yorumlanacak veri bulunamadı."
-
-    yorumlar = []
-    
-    # Grupların ortalamalarını şebeke bazlı hesapla
-    stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
-    
-    yorumlar.append("### 📊 3'lü Performans Karşılaştırma Analiz Raporu")
-    
-    for seb in sorted(df['Şebeke'].unique()):
-        if seb in stats
+        df

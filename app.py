@@ -5,13 +5,15 @@ import os
 import glob
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması", layout="wide")
+st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırma Merkezi", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması")
+st.title("🚀 BiP & WhatsApp İndirme Performansı Karşılaştırması")
 st.markdown("""
-    Bu panelde BiP uygulamasının versiyon gelişimi analiz edilir:
-    * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki indirme performans farkları ve iyileşme oranları.
+    Bu panelde BiP ve WhatsApp uygulamalarının indirme performansları ve versiyon gelişimleri analiz edilir:
+    * **Uygulamalar:** BiP ve WhatsApp (Wa)
+    * **Şebekeler:** 4.5G & Wi-Fi
+    * **Medya Türleri:** HD & SD Fotoğraflar
 """)
 
 def veri_isle(file_path):
@@ -50,16 +52,26 @@ def veri_isle(file_path):
 
         fname = os.path.basename(file_path).lower()
 
-        # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
-        if "_" in fname and "bip" in fname:
+        # --- DOSYA ADI FORMATI AYRIŞTIRMA (BiP & Wa Destekli) ---
+        if "_" in fname:
             clean_name = fname.replace(".xlsx", "").replace(".csv", "")
             parts = clean_name.split('_')
             
-            version = parts[0]   # "5.1.23" or "5.2.6"
-            app_name = "BiP"
-            net_raw = parts[2]   # "4.5g" or "wifi"
-            
-            type_raw = parts[3] 
+            # Uygulama tespiti
+            if "bip" in fname:
+                app_name = "BiP"
+                version = parts[0]   # Örn: "5.1.23" veya "5.2.6"
+                net_raw = parts[2]   # "4.5g" veya "wifi"
+                type_raw = parts[3]  # "hdphoto" veya "sdphoto"
+            elif "wa" in fname or parts[0] == "wa":
+                app_name = "WhatsApp"
+                version = "Mevcut"   # Belirli bir sürüm yoksa genel etiket
+                net_raw = parts[1]   # "4.5g" veya "wifi"
+                type_raw = parts[2]  # "hdphoto" veya "sdphoto"
+            else:
+                return None
+                
+            # Medya kalitesi ve türü ayrıştırma
             if "hd" in type_raw:
                 medya_kalitesi = "HD"
                 medya_turu = type_raw.replace("hd", "").capitalize()
@@ -82,7 +94,13 @@ def veri_isle(file_path):
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
-        df['Grup'] = f"BiP (V{version})"
+        
+        # Grafik renk gruplaması için uygulama ve versiyon birleşimi
+        if app_name == "WhatsApp":
+            df['Grup'] = "WhatsApp"
+        else:
+            df['Grup'] = f"BiP (V{version})"
+            
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
 
@@ -94,38 +112,37 @@ def veri_isle(file_path):
         st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
 
-# --- SÜRÜM GELİŞİM YORUM MOTORU ---
-def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
+# --- SÜRÜM VE UYGULAMA GELİŞİM YORUM MOTORU ---
+def surum_gelisim_yorumu(df, metrik_kolonu):
     if df.empty:
         return "Yorumlanacak veri bulunamadı."
 
     yorumlar = []
-    bip_versions = sorted(list(set(df['Versiyon'].dropna().astype(str))))
+    gruplar = sorted(list(df['Grup'].unique()))
+    sebekeler = sorted(list(df['Şebeke'].unique()))
     
-    if len(bip_versions) < 2:
-        return "Karşılaştırma yapabilmek için filtrelerde en az iki farklı BiP sürümü seçili olmalıdır."
-        
-    v_eski = bip_versions[0]
-    v_yeni = bip_versions[1]
-
-    bip_eski_df = df[df['Versiyon'] == v_eski]
-    bip_yeni_df = df[df['Versiyon'] == v_yeni]
-
-    yorumlar.append(f"### 🔄 BiP V{v_eski} Sürümünden V{v_yeni} Sürümüne Geçiş Analizi")
+    yorumlar.append("### 📊 Genel Performans ve Rekabet Özeti")
     
-    sebekeler = sorted(list(set(bip_eski_df['Şebeke']).intersection(set(bip_yeni_df['Şebeke']))))
     for seb in sebekeler:
-        v_eski_ort = bip_eski_df[bip_eski_df['Şebeke'] == seb][metrik_kolonu].mean()
-        v_yeni_ort = bip_yeni_df[bip_yeni_df['Şebeke'] == seb][metrik_kolonu].mean()
-
-        if pd.notna(v_eski_ort) and pd.notna(v_yeni_ort):
-            if v_yeni_ort < v_eski_ort:
-                iyilesme = ((v_eski_ort - v_yeni_ort) / v_eski_ort) * 100
-                yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümü**, eski V{v_eski}'e göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
-            else:
-                yavaslama = ((v_yeni_ort - v_eski_ort) / v_eski_ort) * 100
-                yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümünde**, V{v_eski}'e kıyasla %{yavaslama:.1f} oranında bir **yavaşlama (süre artışı)** görülmüştür. ⚠️")
-
+        seb_df = df[df['Şebeke'] == seb]
+        yorumlar.append(f"\n**{seb} Şebekesi Analizi:**")
+        
+        # Her grubun ortalamasını hesapla
+        ortalamalar = {}
+        for g in gruplar:
+            g_ort = seb_df[seb_df['Grup'] == g][metrik_kolonu].mean()
+            if pd.notna(g_ort):
+                ortalamalar[g] = g_ort
+                
+        # Ortalamaları küçükten büyüğe (hızlıdan yavaşa) sırala
+        sirali_ort = sorted(ortalamalar.items(), key=lambda x: x[1])
+        
+        for idx, (grup_adi, ort_sure) in enumerate(sirali_ort):
+            madde = f"- {idx+1}. **{grup_adi}**: Ortalama {ort_sure:.1f} ms"
+            if idx == 0:
+                madde += " 🥇 (En Hızlı)"
+            yorumlar.append(madde)
+            
     return "\n".join(yorumlar)
 
 # --- VERİ TARAMA VE YÜKLEME ---
@@ -151,7 +168,7 @@ if all_data:
     secilen_tur = st.sidebar.selectbox("Medya Türü Seçin:", tur_listesi)
 
     mevcut_gruplar = sorted(full_df['Grup'].unique())
-    secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
+    secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Gruplar / Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
 
     # Temel Filtreleme
     plot_df = full_df[
@@ -166,29 +183,10 @@ if all_data:
         plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
         plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
 
+        # Dinamik Renk Paleti (BiP Sürümleri Mavi Tonları, WhatsApp Yeşil)
         color_map = {}
-        if len(mevcut_gruplar) > 0: color_map[mevcut_gruplar[0]] = '#3498db'
-        if len(mevcut_gruplar) > 1: color_map[mevcut_gruplar[1]] = '#1f3a60'
-
-        # --- GRAFİK: İNDİRME (DOWNLOAD) ---
-        st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
-        fig_down = px.bar(
-            plot_df, x='Koşum Sayısı', y='İndirme Süresi', color='Grup',
-            facet_col='Şebeke', barmode='group', text_auto=True,
-            category_orders={
-                "Şebeke": ["4.5G", "Wi-Fi"], 
-                "Grup": mevcut_gruplar,
-                "Koşum Sayısı": sorted(plot_df['Koşum Sayısı'].unique(), key=lambda x: int(x.split('.')[0]))
-            },
-            color_discrete_map=color_map,
-            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'BiP Sürümü', 'Koşum Sayısı': 'Koşum Numarası'}
-        )
-        st.plotly_chart(fig_down, use_container_width=True)
-        st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
-
-        with st.expander("📊 Filtrelenmiş Veri Tablosu"):
-            st.dataframe(plot_df.sort_values(['Şebeke', 'Koşum Sayısı', 'Grup']), use_container_width=True)
-    else:
-        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
-else:
-    st.error("❌ Klasörde geçerli veri içeren BiP .xlsx dosyası bulunamadı!")
+        for grup in mevcut_gruplar:
+            if "WhatsApp" in grup:
+                color_map[grup] = '#2ecc71' # WhatsApp Yeşili
+            elif "5.1.23" in grup:
+                color_map[grup] = '#349

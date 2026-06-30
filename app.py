@@ -5,14 +5,14 @@ import os
 import glob
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP & WhatsApp Üçlü Performans Karşılaştırması", layout="wide")
+st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırma Merkezi", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP (V5.1.23 & V5.2.6) vs WhatsApp İndirme Performansı")
+st.title("🚀 BiP (V5.1.23 & V5.2.6) vs WhatsApp İndirme Performansı Karşılaştırması")
 st.markdown("""
-    Bu panelde, her koşumda **farklı fotoğraflar** kullanılarak yapılan stres testlerinin sonuçları analiz edilir:
-    * **Üçlü Kıyaslama:** BiP (V5.1.23), BiP (V5.2.6) ve WhatsApp indirme süreleri (Download Duration).
-    * **Şebeke & Kalite:** 4.5G ve Wi-Fi şebekeleri üzerinde HD / SD performans kırılımları.
+    Bu panelde BiP ve WhatsApp uygulamalarının indirme performansları 3'lü olarak analiz edilir:
+    * **BiP (V5.1.23) vs BiP (V5.2.6):** Sürüm optimizasyon başarısı.
+    * **BiP Sürümleri vs WhatsApp:** Rakip analizi ve şebeke bazlı en hızlı uygulama tespiti.
 """)
 
 def veri_isle(file_path):
@@ -50,7 +50,7 @@ def veri_isle(file_path):
 
         fname = os.path.basename(file_path).lower()
 
-        # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
+        # --- DOSYA ADI FORMATI AYRIŞTIRMA (BiP & WhatsApp) ---
         if "_" in fname:
             clean_name = fname.replace(".xlsx", "").replace(".csv", "")
             parts = clean_name.split('_')
@@ -84,4 +84,36 @@ def veri_isle(file_path):
 
         # Şebeke ismini standartlaştır
         if "3g" in net_raw: network = "3G"
-        elif "4g" in net_raw or "4.5g" in net_raw: network = "4.5G
+        elif "4g" in net_raw or "4.5g" in net_raw: network = "4.5G"
+        elif "wifi" in net_raw: network = "Wi-Fi"
+        else: network = net_raw.upper()
+
+        # DataFrame sütunlarını doldur
+        df['Uygulama'] = app_name
+        df['Versiyon'] = version
+        df['Şebeke'] = network
+        df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
+        df['Medya Kalitesi'] = medya_kalitesi
+        df['Medya Türü'] = medya_turu
+
+        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
+        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
+
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+    except Exception as e:
+        return None
+
+# --- GELİŞMİŞ 3'LÜ KARŞILAŞTIRMA MOTORU ---
+def surum_gelisim_yorumu(df, metrik_kolonu):
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    
+    # Grupların ortalamalarını şebeke bazlı hesapla
+    stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
+    
+    yorumlar.append("### 📊 3'lü Performans Karşılaştırma Analiz Raporu")
+    
+    for seb in sorted(df['Şebeke'].unique()):
+        if seb in stats

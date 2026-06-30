@@ -5,14 +5,13 @@ import os
 import glob
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırma Merkezi", layout="wide")
+st.set_page_config(page_title="BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP & WhatsApp İndirme Performansı Karşılaştırması")
+st.title("🚀 BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması")
 st.markdown("""
-    Bu panelde BiP ve WhatsApp uygulamalarının indirme performansları ve versiyon gelişimleri analiz edilir:
-    * **Uygulamalar Arası Kıyaslama:** BiP vs WhatsApp indirme süreleri.
-    * **Şebeke & Medya Kırılımı:** 4.5G vs Wi-Fi üzerinde HD ve SD fotoğraf indirme performans farkları.
+    Bu panelde BiP uygulamasının versiyon gelişimi analiz edilir:
+    * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki indirme performans farkları ve iyileşme oranları.
 """)
 
 def veri_isle(file_path):
@@ -56,22 +55,21 @@ def veri_isle(file_path):
             clean_name = fname.replace(".xlsx", "").replace(".csv", "")
             parts = clean_name.split('_')
             
-            # WhatsApp Dosya Formatı Kontrolü (Örn: wa_4.5g_hdphoto)
+            # WhatsApp formatı kontrolü (Örn: wa_4.5g_hdphoto)
             if parts[0] == "wa":
                 app_name = "WhatsApp"
-                version = "Genel"  # WhatsApp için spesifik bir sürüm yoksa genel etiket
-                net_raw = parts[1] # "4.5g" or "wifi"
-                type_raw = parts[2] # "hdphoto" or "sdphoto"
-            # BiP Dosya Formatı Kontrolü (Örn: 5.2.6_bip_4.5g_hdphoto)
+                version = "Genel"
+                net_raw = parts[1]
+                type_raw = parts[2]
+            # BiP formatı kontrolü (Örn: 5.1.23_bip_4.5g_hdphoto)
             elif "bip" in parts:
                 version = parts[0]   # "5.1.23" or "5.2.6"
                 app_name = "BiP"
                 net_raw = parts[2]   # "4.5g" or "wifi"
-                type_raw = parts[3]  # "hdphoto" or "sdphoto"
+                type_raw = parts[3] 
             else:
                 return None
-            
-            # Medya kalitesi ve türü ayrıştırma
+                
             if "hd" in type_raw:
                 medya_kalitesi = "HD"
                 medya_turu = type_raw.replace("hd", "").capitalize()
@@ -94,9 +92,28 @@ def veri_isle(file_path):
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
-        df['Grup'] = f"{app_name} (V{version})" if app_name == "BiP" else app_name
+        df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
 
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
-        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x
+        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
+
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+    except Exception as e:
+        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
+        return None
+
+# --- SÜRÜM GELİŞİM YORUM MOTORU ---
+def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    # Sadece versiyon kontrolünü BiP özelinde yapmak için filtreliyoruz
+    bip_df = df[df['Uygulama'] == 'BiP']
+    bip_versions = sorted(list(set(bip_df['Versiyon'].dropna().astype(str))))
+    
+    if len(bip_versions) >= 2:
+        v_eski = bip_versions[0]
+        v_y

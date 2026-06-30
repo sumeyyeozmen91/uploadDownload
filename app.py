@@ -142,3 +142,6 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
                 # --- 2. BİP V5.2.6 VS WHATSAPP KIYASLAMASI ---
                 yorumlar.append("\n**⚔️ 2. Rakip Karşılaştırması (BiP V5.2.6 vs WhatsApp):**")
                 if pd.notna(bip52) and pd.notna(wa):
+                    if wa < bip52:
+                        kat_hizli = bip52 / wa
+                        yorumlar.append(f"- **Durum:** **WhatsApp** ({int(wa)} ms), güncel **BiP V5.2.6** sürümünden ({int(bip52)} ms) daha kısa sürede indirme yapmaktadır.")

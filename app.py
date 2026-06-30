@@ -142,4 +142,49 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
             
             # 2. BiP V5.2.6 vs WhatsApp Karşılaştırması
             yorumlar.append("\n**⚔️ 2. Rakip Karşılaştırması (BiP V5.2.6 vs WhatsApp):**")
-            if
+            if pd.notna(bip52) and pd.notna(wa):
+                if wa < bip52:
+                    kat_hizli = bip52 / wa
+                    txt1 = f"- **Durum:** **WhatsApp** ({int(wa)} ms), güncel **BiP V5.2.6** sürümünden ({int(bip52)} ms) daha kısa sürede indirmektedir."
+                    txt2 = f"- **Hız Analizi:** WhatsApp, bu kulvarda yaklaşık **{kat_hizli:.1f} kat daha hızlıdır**. 🚀"
+                    yorumlar.append(txt1)
+                    yorumlar.append(txt2)
+                else:
+                    kat_hizli = wa / bip52
+                    txt1 = f"- **Durum:** Güncel **BiP V5.2.6** ({int(bip52)} ms), **WhatsApp**'tan ({int(wa)} ms) daha kısa sürede tamamlamaktadır."
+                    txt2 = f"- **Hız Analizi:** BiP V5.2.6 sürümü, rakibine göre yaklaşık **{kat_hizli:.1f} kat daha hızlıdır**. 🎉"
+                    yorumlar.append(txt1)
+                    yorumlar.append(txt2)
+            else:
+                yorumlar.append("- Karşılaştırma için güncel BiP V5.2.6 veya WhatsApp verisi eksik.")
+            
+            # 3. Genel Sıralama Podyumu
+            mevcut_ortalamalar = [(k, v) for k, v in row.items() if pd.notna(v)]
+            if mevcut_ortalamalar:
+                mevcut_ortalamalar.sort(key=lambda x: x[1])
+                podyum_elemanlari = []
+                for sira, (grup_adi, sure_degeri) in enumerate(mevcut_ortalamalar, start=1):
+                    if sira == 1:
+                        podyum_elemanlari.append(f"🥇 **{grup_adi}** ({int(sure_degeri)} ms - En Hızlı)")
+                    elif sira == 2:
+                        podyum_elemanlari.append(f"🥈 **{grup_adi}** ({int(sure_degeri)} ms - Orta)")
+                    else:
+                        podyum_elemanlari.append(f"🥉 **{grup_adi}** ({int(sure_degeri)} ms - En Yavaş)")
+                
+                yorumlar.append("\n⏱️ **Şebeke Geneli İndirme Süresi Sıralaması (Hızlıdan Yavaşa):**")
+                yorumlar.append(" > ".join(podyum_elemanlari))
+                    
+    return "\n".join(yorumlar)
+
+# --- VERİ TARAMA VE YÜKLEME ---
+all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
+all_files = list(set(all_files))
+
+all_data = []
+for f in all_files:
+    res = veri_isle(f)
+    if res is not None:
+        all_data.append(res)
+
+if all_data:
+    full_df

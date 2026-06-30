@@ -5,14 +5,14 @@ import os
 import glob
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırma Merkezi", layout="wide")
+st.set_page_config(page_title="BiP vs WhatsApp Karşılaştırma Merkezi", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP Android 5.1.23 - 5.2.6 & WhatsApp İndirme Performansı Karşılaştırması")
+st.title("🚀 BiP (V5.1.23 & V5.2.6) vs WhatsApp İndirme Performansı Karşılaştırması")
 st.markdown("""
-    Bu panelde BiP ve WhatsApp uygulamalarının indirme performansları ve versiyon gelişimleri analiz edilir:
-    * **Uygulamalar Arası Kıyaslama:** BiP (V5.1.23) vs WhatsApp ve BiP (V5.2.6) vs WhatsApp indirme hız farkları.
-    * **Koşum Bazlı Kararlılık:** Her koşumda değişen farklı fotoğraflara karşı ağ tepkileri.
+    Bu panelde BiP'in iki farklı sürümü ile WhatsApp uygulamasının indirme performansları aynı anda analiz edilir:
+    * **Üçlü Kıyaslama:** BiP (V5.1.23) vs BiP (V5.2.6) vs WhatsApp
+    * **Şebeke & Medya Kırılımı:** 4.5G ve Wi-Fi ağlarında, her koşumda değişen HD/SD fotoğraf indirme süreleri.
 """)
 
 def veri_isle(file_path):
@@ -50,22 +50,22 @@ def veri_isle(file_path):
 
         fname = os.path.basename(file_path).lower()
 
-        # --- DOSYA ADI FORMATI AYRIŞTIRMA (BiP & WhatsApp) ---
+        # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
         if "_" in fname:
             clean_name = fname.replace(".xlsx", "").replace(".csv", "")
             parts = clean_name.split('_')
             
-            # WhatsApp formatı kontrolü (Örn: wa_4.5g_hdphoto)
+            # WhatsApp formatı (Örn: wa_4.5g_hdphoto)
             if parts[0] == "wa":
                 app_name = "WhatsApp"
                 version = "Genel"
                 net_raw = parts[1]
                 type_raw = parts[2]
-            # BiP formatı kontrolü (Örn: 5.1.23_bip_4.5g_hdphoto)
+            # BiP formatı (Örn: 5.1.23_bip_4.5g_hdphoto)
             elif "bip" in parts:
-                version = parts[0]   # "5.1.23" or "5.2.6"
+                version = parts[0]   # "5.1.23" veya "5.2.6"
                 app_name = "BiP"
-                net_raw = parts[2]   # "4.5g" or "wifi"
+                net_raw = parts[2]   # "4.5g" veya "wifi"
                 type_raw = parts[3] 
             else:
                 return None
@@ -92,8 +92,47 @@ def veri_isle(file_path):
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
-        df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
+        
+        # Etiketleme Mantığı
+        if app_name == "WhatsApp":
+            df['Grup'] = "WhatsApp"
+        else:
+            df['Grup'] = f"BiP (V{version})"
+            
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
 
-        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞ
+        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
+        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
+
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+    except Exception as e:
+        return None
+
+# --- DİNAMİK ÜÇLÜ PERFORMANS YORUM MOTORU ---
+def uclu_performans_yorumu(df, metrik_kolonu):
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    mevcut_gruplar = list(df['Grup'].dropna().unique())
+    
+    yorumlar.append("### 📊 Üçlü Performans Karşılaştırma Analizi")
+    
+    sebekeler = sorted(list(df['Şebeke'].unique()))
+    for seb in sebekeler:
+        seb_df = df[df['Şebeke'] == seb]
+        yorumlar.append(f"\n**📍 {seb} Altyapısı Altındaki Durum:**")
+        
+        # Her grup (BiP V5.1.23, BiP V5.2.6, WhatsApp) için ortalamaları hesapla
+        ortalamalar = []
+        for grp in mevcut_gruplar:
+            grp_ort = seb_df[seb_df['Grup'] == grp][metrik_kolonu].mean()
+            if pd.notna(grp_ort):
+                ortalamalar.append((grp, grp_ort))
+        
+        # En hızlıdan (en düşük ms) en yavaşa sıralama
+        ortalamalar.sort(key=lambda x: x[1])
+        
+        for i, (grp, ort) in enumerate(ortalamalar):
+            sim

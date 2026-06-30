@@ -105,7 +105,7 @@ def veri_isle(file_path):
     except Exception as e:
         return None
 
-# --- GÜVENLİ VE SATIR KIRILMASI KORUMALI KIYASLAMA MOTORU ---
+# --- GÜVENLİ HİZALANMIŞ KIYASLAMA MOTORU ---
 def surum_gelisim_yorumu(df, metrik_kolonu):
     if df.empty:
         return "Yorumlanacak veri bulunamadı."
@@ -142,11 +142,4 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
             
             # 2. BiP V5.2.6 vs WhatsApp Karşılaştırması
             yorumlar.append("\n**⚔️ 2. Rakip Karşılaştırması (BiP V5.2.6 vs WhatsApp):**")
-            if pd.notna(bip52) and pd.notna(wa):
-                if wa < bip52:
-                    kat_hizli = bip52 / wa
-                    txt1 = f"- **Durum:** **WhatsApp** ({int(wa)} ms), güncel **BiP V5.2.6** sürümünden ({int(bip52)} ms) daha kısa sürede indirmektedir."
-                    txt2 = f"- **Hız Analizi:** WhatsApp, bu kulvarda yaklaşık **{kat_hizli:.1f} kat daha hızlıdır**. 🚀"
-                    yorumlar.append(txt1)
-                    yorumlar.append(txt2)
-                else:
+            if

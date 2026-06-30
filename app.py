@@ -20,7 +20,8 @@ def veri_isle(file_path):
         if not os.path.exists(file_path):
             return None
 
-        df = pd.read_excel(file_path)
+        # Excel okuma motorunu açıkça belirterek olası kütüphane kilitlerini kırıyoruz
+        df = pd.read_excel(file_path, engine='openpyxl')
 
         if df.empty:
             return None
@@ -38,6 +39,7 @@ def veri_isle(file_path):
         gerekli_sutunlar = ['Test Adı', 'İndirme Süresi']
         for col in gerekli_sutunlar:
             if col not in df.columns:
+                st.warning(f"⚠️ {os.path.basename(file_path)} içinde '{col}' sütunu bulunamadı. Sütunlar: {list(df.columns)}")
                 return None
 
         # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
@@ -101,6 +103,7 @@ def veri_isle(file_path):
 
         return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
+        st.error(f"💥 {os.path.basename(file_path)} okunurken kritik hata: {e}")
         return None
 
 # --- GELİŞMİŞ 3'LÜ KARŞILAŞTIRMA MOTORU ---
@@ -109,10 +112,7 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
         return "Yorumlanacak veri bulunamadı."
 
     yorumlar = []
-    
-    # Grupların ortalamalarını şebeke bazlı hesapla
     stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
-    
     yorumlar.append("### 📊 3'lü Performans Karşılaştırma Analiz Raporu")
     
     for seb in sorted(df['Şebeke'].unique()):
@@ -124,27 +124,15 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
             bip52 = row.get('BiP (V5.2.6)', None)
             wa = row.get('WhatsApp', None)
             
-            # 1. BiP Sürüm Gelişimi Kıyası
             if pd.notna(bip51) and pd.notna(bip52):
                 if bip52 < bip51:
                     degisim = ((bip51 - bip52) / bip51) * 100
-                    yorumlar.append(f"- **BiP Gelişimi:** Yeni V5.2.6 sürümü, eski V5.1.23 sürümüne göre **%{degisim:.1f} daha hızlıdır.** (Optimizasyon Başarılı) ✅")
+                    yorumlar.append(f"- **BiP Gelişimi:** Yeni V5.2.6 sürümü, eski V5.1.23 sürümüne göre **%{degisim:.1f} daha hızlıdır.** ✅")
                 else:
                     degisim = ((bip52 - bip51) / bip51) * 100
                     yorumlar.append(f"- **BiP Gelişimi:** Yeni V5.2.6 sürümünde eski sürüme göre **%{degisim:.1f} oranında bir yavaşlama** saptanmıştır. ⚠️")
             
-            # 2. WhatsApp ile 3'lü Liderlik Yarışı
             mevcut_ortalamalar = [(k, v) for k, v in row.items() if pd.notna(v)]
             if mevcut_ortalamalar:
                 mevcut_ortalamalar.sort(key=lambda x: x[1])
-                lider_grup, lider_sure = mevcut_ortalamalar[0]
-                yorumlar.append(f"- **3'lü Rekabet:** En efektif indirme süresi **{int(lider_sure)} ms** ile **{lider_grup}** tarafından elde edilmiştir. 🚀")
-                
-                podyum = " > ".join([f"**{g}** ({int(s)} ms)" for g, s in mevcut_ortalamalar])
-                yorumlar.append(f"- **Hız Sıralaması (Hızlıdan Yavaşa):** {podyum}")
-                
-    return "\n".join(yorumlar)
-
-# --- VERİ TARAMA VE YÜKLEME ---
-all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
-all_files = list(set(all_files))
+                lider_grup

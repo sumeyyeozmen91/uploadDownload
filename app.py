@@ -171,20 +171,4 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
                     else:
                         podyum_elemanlari.append(f"🥉 **{grup_adi}** ({int(sure_degeri)} ms - En Yavaş)")
                 
-                yorumlar.append("\n⏱️ **Şebeke Geneli İndirme Süresi Sıralaması (Hızlıdan Yavaşa):**")
-                yorumlar.append(" > ".join(podyum_elemanlari))
-                    
-    return "\n".join(yorumlar)
-
-# --- VERİ TARAMA VE YÜKLEME ---
-all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
-all_files = list(set(all_files))
-
-all_data = []
-for f in all_files:
-    res = veri_isle(f)
-    if res is not None:
-        all_data.append(res)
-
-if all_data:
-    full_df
+                yorum

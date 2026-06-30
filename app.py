@@ -105,24 +105,29 @@ def veri_isle(file_path):
     except Exception as e:
         return None
 
-# --- DETAYLI VE ANLAŞILIR KIYASLAMA MOTORU ---
+# --- GÜVENLİ VE SIFIR HATA RİSKLİ KIYASLAMA MOTORU ---
 def surum_gelisim_yorumu(df, metrik_kolonu):
-    try:
-        if df.empty:
-            return "Yorumlanacak veri bulunamadı."
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
 
-        yorumlar = []
-        stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
-        
-        yorumlar.append("## 📊 Detaylı Performans Analiz Raporu")
-        
-        for seb in sorted(df['Şebeke'].unique()):
-            if seb in stats.index:
-                yorumlar.append(f"\n### 📍 {seb} Şebekesi Analiz Sonuçları")
-                row = stats.loc[seb]
-                
-                bip51 = row.get('BiP (V5.1.23)', None)
-                bip52 = row.get('BiP (V5.2.6)', None)
-                wa = row.get('WhatsApp', None)
-                
-                # --- 1. BİP
+    yorumlar = []
+    stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
+    
+    yorumlar.append("## 📊 Detaylı Performans Analiz Raporu")
+    
+    for seb in sorted(df['Şebeke'].unique()):
+        if seb in stats.index:
+            yorumlar.append(f"\n### 📍 {seb} Şebekesi Analiz Sonuçları")
+            row = stats.loc[seb]
+            
+            bip51 = row.get('BiP (V5.1.23)', None)
+            bip52 = row.get('BiP (V5.2.6)', None)
+            wa = row.get('WhatsApp', None)
+            
+            # 1. BiP Sürüm Karşılaştırması
+            yorumlar.append("**🔄 1. BiP Sürüm Karşılaştırması (Sürüm Gelişimi):**")
+            if pd.notna(bip51) and pd.notna(bip52):
+                if bip52 < bip51:
+                    fark_ms = int(bip51 - bip52)
+                    yuzde = (bip51 - bip52) / bip51 * 100
+                    yorumlar.append(f"- **Durum:** Güncel **BiP (V5.2.6)** sürümü, eski sürümüne (V5.1.23) göre indirme süresini **{fark_ms} ms kısalt

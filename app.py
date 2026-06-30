@@ -5,13 +5,13 @@ import os
 import glob
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması", layout="wide")
+st.set_page_config(page_title="BiP Android & WhatsApp Karşılaştırma Merkezi", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP Android 5.1.23 - 5.2.6 İndirme Performansı Karşılaştırması")
+st.title("🚀 BiP Android 5.1.23 - 5.2.6 & WhatsApp İndirme Performansı Karşılaştırması")
 st.markdown("""
-    Bu panelde BiP uygulamasının versiyon gelişimi analiz edilir:
-    * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki indirme performans farkları ve iyileşme oranları.
+    Bu panelde BiP ve WhatsApp uygulamalarının versiyon gelişimleri ve indirme performansları analiz edilir:
+    * **BiP (V5.1.23) vs BiP (V5.2.6) vs WhatsApp:** Sürümler ve uygulamalar arasındaki indirme hız farkları.
 """)
 
 def veri_isle(file_path):
@@ -37,7 +37,6 @@ def veri_isle(file_path):
         gerekli_sutunlar = ['Test Adı', 'İndirme Süresi']
         for col in gerekli_sutunlar:
             if col not in df.columns:
-                st.error(f"⚠️ {os.path.basename(file_path)} içinde gerekli sütun yapısı çözülemedi! Mevcut Sütunlar: {list(df.columns)}")
                 return None
 
         # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
@@ -101,7 +100,6 @@ def veri_isle(file_path):
 
         return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
     except Exception as e:
-        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
 
 # --- SÜRÜM GELİŞİM YORUM MOTORU ---
@@ -110,10 +108,112 @@ def surum_gelisim_yorumu(df, metrik_kolonu, metrik_adi):
         return "Yorumlanacak veri bulunamadı."
 
     yorumlar = []
-    # Sadece versiyon kontrolünü BiP özelinde yapmak için filtreliyoruz
     bip_df = df[df['Uygulama'] == 'BiP']
     bip_versions = sorted(list(set(bip_df['Versiyon'].dropna().astype(str))))
     
     if len(bip_versions) >= 2:
         v_eski = bip_versions[0]
-        v_y
+        v_yeni = bip_versions[1]
+
+        bip_eski_df = bip_df[bip_df['Versiyon'] == v_eski]
+        bip_yeni_df = bip_df[bip_df['Versiyon'] == v_yeni]
+
+        yorumlar.append(f"### 🔄 BiP V{v_eski} Sürümünden V{v_yeni} Sürümüne Geçiş Analizi")
+        
+        sebekeler = sorted(list(set(bip_eski_df['Şebeke']).intersection(set(bip_yeni_df['Şebeke']))))
+        for seb in sebekeler:
+            v_eski_ort = bip_eski_df[bip_eski_df['Şebeke'] == seb][metrik_kolonu].mean()
+            v_yeni_ort = bip_yeni_df[bip_yeni_df['Şebeke'] == seb][metrik_kolonu].mean()
+
+            if pd.notna(v_eski_ort) and pd.notna(v_yeni_ort):
+                if v_yeni_ort < v_eski_ort:
+                    iyilesme = ((v_eski_ort - v_yeni_ort) / v_eski_ort) * 100
+                    yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümü**, eski V{v_eski}'e göre {metrik_adi} süresini **%{iyilesme:.1f} azaltarak (hızlandırarak)** performans artışı kaydetmiştir. ✅")
+                else:
+                    yavaslama = ((v_yeni_ort - v_eski_ort) / v_eski_ort) * 100
+                    yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **V{v_yeni} sürümünde**, V{v_eski}'e kıyasla %{yavaslama:.1f} oranında bir **yavaşlama (süre artışı)** görülmüştür. ⚠️")
+    
+    wa_df = df[df['Uygulama'] == 'WhatsApp']
+    if not wa_df.empty and not bip_df.empty:
+        yorumlar.append("\n### 🟢 WhatsApp ile Genel Karşılaştırma")
+        for seb in sorted(list(df['Şebeke'].unique())):
+            wa_seb_ort = wa_df[wa_df['Şebeke'] == seb][metrik_kolonu].mean()
+            bip_seb_ort = bip_df[bip_df['Şebeke'] == seb][metrik_kolonu].mean()
+            if pd.notna(wa_seb_ort) and pd.notna(bip_seb_ort):
+                lider = "WhatsApp" if wa_seb_ort < bip_seb_ort else "BiP"
+                oran = abs(bip_seb_ort - wa_seb_ort) / max(bip_seb_ort, wa_seb_ort) * 100
+                yorumlar.append(f"- **{seb} Şebekesinde:** Ortalama indirme sürelerinde **{lider}**, rakibine göre %{oran:.1f} fark ile önceliklidir.")
+
+    return "\n".join(yorumlar)
+
+# --- VERİ TARAMA VE YÜKLEME ---
+all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
+all_files = list(set(all_files))
+
+all_data = []
+for f in all_files:
+    res = veri_isle(f)
+    if res is not None:
+        all_data.append(res)
+
+if all_data:
+    full_df = pd.concat(all_data, ignore_index=True)
+
+    # --- FİLTRELER (SIDEBAR) ---
+    st.sidebar.header("⚙️ Analiz Ayarları")
+
+    kalite_listesi = sorted(full_df['Medya Kalitesi'].unique())
+    secilen_kalite = st.sidebar.selectbox("Medya Kalitesi Seçin:", kalite_listesi)
+
+    tur_listesi = sorted(full_df['Medya Türü'].unique())
+    secilen_tur = st.sidebar.selectbox("Medya Türü Seçin:", tur_listesi)
+
+    mevcut_gruplar = sorted(full_df['Grup'].unique())
+    secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Versiyonlar/Uygulamalar:", mevcut_gruplar, default=mevcut_gruplar)
+
+    # Temel Filtreleme
+    plot_df = full_df[
+        (full_df['Medya Kalitesi'] == secilen_kalite) & 
+        (full_df['Medya Türü'] == secilen_tur) & 
+        (full_df['Grup'].isin(secilen_gruplar))
+    ].copy()
+
+    if not plot_df.empty:
+        # --- DİNAMİK KOŞUM SAYISI (SIRA NO) ATAMA ---
+        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Boyut'])
+        plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
+        plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
+
+        # Sabit güvenli renk haritası
+        color_map = {
+            'BiP (V5.1.23)': '#3498db',
+            'BiP (V5.2.6)': '#1f3a60',
+            'WhatsApp': '#2ecc71'
+        }
+
+        # --- GRAFİK: İNDİRME (DOWNLOAD) ---
+        st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
+        
+        # Koşum sayılarını sıralı listeleme kuralı
+        kosum_sirasi = sorted(plot_df['Koşum Sayısı'].unique(), key=lambda x: int(x.split('.')[0]))
+
+        fig_down = px.bar(
+            plot_df, x='Koşum Sayısı', y='İndirme Süresi', color='Grup',
+            facet_col='Şebeke', barmode='group', text_auto=True,
+            category_orders={
+                "Şebeke": ["4.5G", "Wi-Fi"], 
+                "Grup": secilen_gruplar,
+                "Koşum Sayısı": kosum_sirasi
+            },
+            color_discrete_map=color_map,
+            labels={'İndirme Süresi': 'Süre (ms)', 'Grup': 'Uygulama Sürümü', 'Koşum Sayısı': 'Koşum Numarası'}
+        )
+        st.plotly_chart(fig_down, use_container_width=True)
+        st.success(surum_gelisim_yorumu(plot_df, 'İndirme Süresi', 'indirme'))
+
+        with st.expander("📊 Filtrelenmiş Veri Tablosu"):
+            st.dataframe(plot_df.sort_values(['Şebeke', 'Koşum Sayısı', 'Grup']), use_container_width=True)
+    else:
+        st.warning("⚠️ Seçilen filtrelere (Medya Kalitesi / Türü) uygun veri bulunamadı. Lütfen sol menüdeki filtreleri değiştirin.")
+else:
+    st.error("❌ Klasörde eşleşen formatta geçerli veri içeren .xlsx dosyası bulunamadı!")

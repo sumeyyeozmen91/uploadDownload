@@ -1,117 +1,4 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import os
-import glob
-
-# Sayfa ayarları
-st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırma Merkezi", layout="wide")
-
-# --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP (V5.1.23 & V5.2.6) vs WhatsApp İndirme Performansı Karşılaştırması")
-st.markdown("""
-    Bu panelde BiP ve WhatsApp uygulamalarının **Download_Duration (İndirme Süresi)** performansları 3'lü olarak analiz edilir:
-    * **BiP (V5.1.23) vs BiP (V5.2.6):** Sürüm gelişim ve optimizasyon başarısı.
-    * **BiP Sürümleri vs WhatsApp:** Rakip analizi ve şebeke bazlı en hızlı uygulama tespiti.
-""")
-
-def veri_isle(file_path):
-    try:
-        if not os.path.exists(file_path):
-            return None
-
-        # Excel dosyasını oku
-        try:
-            df = pd.read_excel(file_path, engine='openpyxl')
-        except:
-            df = pd.read_excel(file_path)
-
-        if df.empty:
-            return None
-
-        # Sütun isimlerinin başındaki ve sonundaki boşlukları temizle
-        df.columns = [str(c).strip() for c in df.columns]
-
-        # İlk sütunu 'Test Adı' olarak sabitle
-        df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
-
-        # --- DOWNLOAD_DURATION ODAKLI KONTROL ---
-        duration_col = None
-        for col in df.columns:
-            if col.lower() == 'download_duration':
-                duration_col = col
-                break
-        
-        if duration_col is not None:
-            df.rename(columns={duration_col: 'Download_Duration'}, inplace=True)
-        else:
-            for col in df.columns:
-                if 'duration' in col.lower():
-                    df.rename(columns={col: 'Download_Duration'}, inplace=True)
-                    duration_col = col
-                    break
-        
-        if 'Download_Duration' not in df.columns:
-            return None
-
-        # --- GÜVENLİ SAYISAL DÖNÜŞTÜRME ---
-        df['Download_Duration'] = df['Download_Duration'].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
-        df['Download_Duration'] = df['Download_Duration'].str.replace(',', '.')
-        df['Download_Duration'] = pd.to_numeric(df['Download_Duration'], errors='coerce').astype(float)
-
-        # Boş veya hatalı satırları temizle
-        df = df.dropna(subset=['Download_Duration'])
-
-        fname = os.path.basename(file_path)
-
-        # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
-        if "_" in fname:
-            clean_name = fname.replace(".xlsx", "").replace(".csv", "")
-            parts = clean_name.split('_')
-            parts_lower = [p.lower() for p in parts]
-            
-            if parts_lower[0] == "wa":
-                app_name = "WhatsApp"
-                version = "Genel"
-                net_raw = parts_lower[1]
-                type_raw = parts_lower[2]
-            elif "bip" in parts_lower:
-                version = parts[0]
-                app_name = "BiP"
-                net_raw = parts_lower[2]
-                type_raw = parts_lower[3]
-            else:
-                return None
-                
-            if "hd" in type_raw:
-                medya_kalitesi = "HD"
-                medya_turu = type_raw.replace("hd", "").capitalize()
-            elif "sd" in type_raw:
-                medya_kalitesi = "SD"
-                medya_turu = type_raw.replace("sd", "").capitalize()
-            else:
-                medya_kalitesi = "Genel"
-                medya_turu = type_raw.capitalize()
-        else:
-            return None
-
-        if "3g" in net_raw: network = "3G"
-        elif "4g" in net_raw or "4.5g" in net_raw: network = "4.5G"
-        elif "wifi" in net_raw: network = "Wi-Fi"
-        else: network = net_raw.upper()
-
-        df['Uygulama'] = app_name
-        df['Versiyon'] = version
-        df['Şebeke'] = network
-        df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
-        df['Medya Kalitesi'] = medya_kalitesi
-        df['Medya Türü'] = medya_turu
-
-        return df[['Test Adı', 'Download_Duration', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
-    except Exception as e:
-        return None
-
-# --- GELİŞMİŞ VE DETAYLANDIRILMIŞ 3'LÜ KARŞILAŞTIRMA MOTORU ---
+# --- GELİŞMİŞ VE DETAYLANDIRILMIŞ 3'LÜ KARŞILAŞTIRMA MOTORU (GÜNCELLENDİ) ---
 def surum_gelisim_yorumu(df, metrik_kolonu):
     try:
         if df.empty:
@@ -135,4 +22,36 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
                 if pd.notna(bip51) and pd.notna(bip52):
                     if bip52 < bip51:
                         degisim = ((bip51 - bip52) / bip51) * 100
-                        yorumlar.append(f"- **BiP İçi Evrim:** Yeni V5.2.6 sürümü, eski V5.1.23 sürümüne göre indirme süresini **{int(bip51 - bip52
+                        yorumlar.append(f"- **BiP İçi Evrim:** Yeni V5.2.6 sürümü, eski V5.1.23 sürümüne göre indirme süresini **{int(bip51 - bip52)} ms kısaltmış** ve **%{degisim:.1f} daha hızlı** bir performansa ulaşmıştır. ✅")
+                    else:
+                        degisim = ((bip52 - bip51) / bip51) * 100
+                        yorumlar.append(f"- **BiP İçi Evrim:** Yeni V5.2.6 sürümünde eski sürüme kıyasla indirme süresi **{int(bip52 - bip51)} ms uzamış (%{degisim:.1f} yavaşlama)** saptanmıştır. ⚠️")
+                
+                # 2. Detaylandırılmış 3'lü Sıralama ve Performans Makası
+                mevcut_ortalamalar = [(k, v) for k, v in row.items() if pd.notna(v)]
+                if mevcut_ortalamalar:
+                    mevcut_ortalamalar.sort(key=lambda x: x[1])  # En kısa süreden (en hızlıdan) en uzuna sıralar
+                    
+                    lider_grup, lider_sure = mevcut_ortalamalar[0]
+                    yorumlar.append(f"- **Kulvar Lideri:** Bu şebekede en az sürede indiren (en hızlı) platform **{int(lider_sure)} ms** ortalamayla **{lider_grup}** olmuştur. 🚀")
+                    
+                    # Karmaşayı Önleyen Yeni Podyum Metni
+                    podyum_elemanlari = []
+                    for sira, (grup_adi, sure_degeri) in enumerate(mevcut_ortalamalar, start=1):
+                        if sira == 1:
+                            podyum_elemanlari.append(f"🥇 **{grup_adi}** ({int(sure_degeri)} ms - En Hızlı)")
+                        elif sira == 2:
+                            podyum_elemanlari.append(f"🥈 **{grup_adi}** ({int(sure_degeri)} ms - Orta)")
+                        else:
+                            podyum_elemanlari.append(f"🥉 **{grup_adi}** ({int(sure_degeri)} ms - En Yavaş)")
+                    
+                    yorumlar.append(f"- **Performans Sıralaması (En Kısa Sürede İndirenden En Uzuna):** " + "  >  ".join(podyum_elemanlari))
+                    
+                    if len(mevcut_ortalamalar) >= 2:
+                        en_yavas_grup, en_yavas_sure = mevcut_ortalamalar[-1]
+                        makas_yuzde = ((en_yavas_sure - lider_sure) / en_yavas_sure) * 100
+                        yorumlar.append(f"- **Performans Makası:** Lider platform ({lider_grup}), en yavaş kalan platforma ({en_yavas_grup}) kıyasla süreyi **%{makas_yuzde:.1f} oranında azaltarak** daha efektif bir indirme sağlamıştır.")
+                        
+        return "\n".join(yorumlar)
+    except:
+        return "Yorum motorunda teknik bir hata oluştu."

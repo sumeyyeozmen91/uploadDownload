@@ -105,7 +105,7 @@ def veri_isle(file_path):
     except Exception as e:
         return None
 
-# --- SATIR KIRILMASI KORUMALI NET KIYASLAMA MOTORU ---
+# --- GÜVENLİ HİZALANMIŞ KIYASLAMA MOTORU ---
 def surum_gelisim_yorumu(df, metrik_kolonu):
     if df.empty:
         return "Yorumlanacak veri bulunamadı."
@@ -122,3 +122,33 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
             
             bip51 = row.get('BiP (V5.1.23)', None)
             bip52 = row.get('BiP (V5.2.6)', None)
+            wa = row.get('WhatsApp', None)
+            
+            # 1. BiP Sürüm Karşılaştırması
+            yorumlar.append("**🔄 1. BiP Sürüm Karşılaştırması (Sürüm Gelişimi):**")
+            if pd.notna(bip51) and pd.notna(bip52):
+                if bip52 < bip51:
+                    fark_ms = int(bip51 - bip52)
+                    yuzde = (bip51 - bip52) / bip51 * 100
+                    txt = f"- **Durum:** Güncel **BiP (V5.2.6)**, eski sürüme göre süreyi **{fark_ms} ms** kısalttı (%{yuzde:.1f} hızlı). ✅"
+                    yorumlar.append(txt)
+                else:
+                    fark_ms = int(bip52 - bip51)
+                    yuzde = (bip52 - bip51) / bip51 * 100
+                    txt = f"- **Durum:** Güncel **BiP (V5.2.6)**, eski sürüme göre süreyi **{fark_ms} ms** uzattı (%{yuzde:.1f} yavaş). ⚠️"
+                    yorumlar.append(txt)
+            else:
+                yorumlar.append("- Karşılaştırma için yeterli BiP sürüm verisi bulunamadı.")
+            
+            # 2. BiP V5.2.6 vs WhatsApp Karşılaştırması
+            yorumlar.append("\n**⚔️ 2. Rakip Karşılaştırması (BiP V5.2.6 vs WhatsApp):**")
+            if pd.notna(bip52) and pd.notna(wa):
+                if wa < bip52:
+                    kat_hizli = bip52 / wa
+                    txt1 = f"- **Durum:** **WhatsApp** ({int(wa)} ms), güncel **BiP V5.2.6** sürümünden ({int(bip52)} ms) daha kısa sürede indirmektedir."
+                    txt2 = f"- **Hız Analizi:** WhatsApp, bu kulvarda yaklaşık **{kat_hizli:.1f} kat daha hızlıdır**. 🚀"
+                    yorumlar.append(txt1)
+                    yorumlar.append(txt2)
+                else:
+                    kat_hizli = wa / bip52
+                    txt1 = f

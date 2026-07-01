@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
@@ -56,4 +56,29 @@ def veri_isle(file_path):
         df['Download_Duration'] = pd.to_numeric(df['Download_Duration'], errors='coerce').astype(float)
 
         df = df.dropna(subset=['Download_Duration'])
-        fname = os.
+        fname = os.path.basename(file_path)
+
+        # --- DOSYA ADI FORMATI AYRIŞTIRMA ---
+        if "_" in fname:
+            clean_name = fname.replace(".xlsx", "").replace(".csv", "")
+            parts = clean_name.split('_')
+            parts_lower = [p.lower() for p in parts]
+            
+            n_parts = len(parts_lower)
+            
+            if n_parts >= 3 and parts_lower[0] == "wa":
+                app_name = "WhatsApp"
+                version = "Genel"
+                net_raw = parts_lower[1]
+                type_raw = parts_lower[2]
+            elif n_parts >= 4 and "bip" in parts_lower:
+                version = parts[0]
+                app_name = "BiP"
+                net_raw = parts_lower[2]
+                type_raw = parts_lower[3]
+            else:
+                return None
+                
+            if "hd" in type_raw:
+                medya_kalitesi = "HD"
+                medya_

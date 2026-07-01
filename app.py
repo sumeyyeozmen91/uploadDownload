@@ -69,16 +69,4 @@ def veri_isle(file_path):
                 version = "Genel"
                 net_raw = parts_lower[1]
                 type_raw = parts_lower[2]
-            elif "bip" in parts_lower:
-                version = parts[0]
-                app_name = "BiP"
-                net_raw = parts_lower[2]
-                type_raw = parts_lower[3]
-            else:
-                return None
-                
-            if "hd" in type_raw:
-                medya_kalitesi = "HD"
-                medya_turu = type_raw.replace("hd", "").capitalize()
-            elif "sd" in type_raw:
-                medya_kal
+            elif "bip" in parts_lower

@@ -73,9 +73,9 @@ def veri_isle(file_path):
             net_raw = parts[1]
             type_raw = parts[2]
         elif len(parts) >= 4 and "bip" in parts:
-            version = parts[0]   # "5.1.23" veya "5.2.6"
+            version = parts[0]
             app_name = "BiP"
-            net_raw = parts[2]   # "4.5g" veya "wifi"
+            net_raw = parts[2]
             type_raw = parts[3] 
         else:
             return None
@@ -90,4 +90,60 @@ def veri_isle(file_path):
             medya_kalitesi = "Genel"
             medya_turu = type_raw.capitalize()
 
-        # Ş
+        # Şebeke ismini standartlaştır
+        if "3g" in net_raw: network = "3G"
+        elif "4g" in net_raw or "4.5g" in net_raw: network = "4.5G"
+        elif "wifi" in net_raw: network = "Wi-Fi"
+        else: network = net_raw.upper()
+
+        # DataFrame sütunlarını doldur
+        df['Uygulama'] = app_name
+        df['Versiyon'] = version
+        df['Şebeke'] = network
+        df['Grup'] = f"BiP (V{version})" if app_name == "BiP" else app_name
+        df['Medya Kalitesi'] = medya_kalitesi
+        df['Medya Türü'] = medya_turu
+
+        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
+        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
+
+        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+    except Exception as e:
+        return None
+
+# --- ÇİFT KADEMELİ DETAYLI YORUM MOTORU ---
+def surum_gelisim_yorumu(df, metrik_kolonu):
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
+    
+    yorumlar.append("## 📊 Detaylı Performans Analiz Raporu")
+    
+    for seb in sorted(df['Şebeke'].unique()):
+        if seb in stats.index:
+            yorumlar.append(f"\n### 📍 {seb} Şebekesi Analiz Sonuçları")
+            row = stats.loc[seb]
+            
+            bip51 = row.get('BiP (V5.1.23)', None)
+            bip52 = row.get('BiP (V5.2.6)', None)
+            wa = row.get('WhatsApp', None)
+            
+            # --- 1. BİP SÜRÜM KIYASLAMASI (V5.1.23 vs V5.2.6) ---
+            yorumlar.append("**🔄 1. BiP Sürüm Karşılaştırması (Sürüm Gelişimi):**")
+            if pd.notna(bip51) and pd.notna(bip52):
+                if bip52 < bip51:
+                    fark_ms = int(bip51 - bip52)
+                    yuzde = (bip51 - bip52) / bip51 * 100
+                    yorumlar.append(f"- **Durum:** Güncel **BiP (V5.2.6)**, eski sürümüne (V5.1.23) kıyasla indirme süresini **{fark_ms} ms kısaltmış** ve **%{yuzde:.1f} daha hızlı** bir performansa ulaşmıştır. ✅")
+                else:
+                    fark_ms = int(bip52 - bip51)
+                    yuzde = (bip52 - bip51) / bip51 * 100
+                    yorumlar.append(f"- **Durum:** Güncel **BiP (V5.2.6)** sürümünde, eski sürüme göre indirme süresinde **{fark_ms} ms uzama** (%{yuzde:.1f} yavaşlama) saptanmıştır. ⚠️")
+            else:
+                yorumlar.append("- Karşılaştırma için yeterli BiP sürüm verisi bulunamadı.")
+            
+            # --- 2. BİP V5.2.6 VS WHATSAPP KIYASLAMASI ---
+            yorumlar.append("\n**⚔️ 2. Rakip Karşılaştırması (BiP V5.2.6 vs WhatsApp):**")
+            if pd.notna(bip52) and pd.notna(wa):

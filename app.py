@@ -30,9 +30,6 @@ def veri_isle(file_path):
         df.columns = [str(c).strip() for c in df.columns]
 
         # Sadece Download_Duration sütununu hedef alıyoruz
-        sutun_haritasi = {
-            'Download_Duration': 'İndirme Süresi'
-        }
         df.rename(columns={c: 'İndirme Süresi' for c in df.columns if 'download_duration' in c.lower() or c == 'Download_Duration'}, inplace=True)
 
         gerekli_sutunlar = ['Test Adı', 'İndirme Süresi']
@@ -67,7 +64,6 @@ def veri_isle(file_path):
             type_raw = parts[2]  # "hdphoto", "sdphoto" vb.
             grup_adi = "WhatsApp"
         else:
-            # Format dışı dosyaları es geç
             return None
 
         # Medya kalitesi ve türü ayrıştırma
@@ -94,11 +90,9 @@ def veri_isle(file_path):
         df['Grup'] = grup_adi
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
-
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
-        df['Boyut'] = df['Test Adı'].apply(lambda x: str(x).split('.')[0] if '.' in str(x) else str(x))
 
-        return df[['Test Adı', 'Uzantı', 'Boyut', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
+        return df[['Test Adı', 'Uzantı', 'İndirme Süresi', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü']]
 
     except Exception as e:
         st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
@@ -134,7 +128,7 @@ def performans_yorumu(df, metrik_kolonu):
 
     # 2. Analiz: En Güncel BiP vs WhatsApp Karşılaştırması
     if "WhatsApp" in gruplar and len(bip_versions) > 0:
-        v_guncel_bip = bip_versions[-1] # En yüksek sürümlü BiP'i alıyoruz
+        v_guncel_bip = bip_versions[-1]
         
         yorumlar.append(f"\n### 🏁 {v_guncel_bip} Sürümü ile WhatsApp Karşılaştırması")
         for seb in sebekeler:
@@ -185,17 +179,18 @@ if all_data:
 
     if not plot_df.empty:
         # --- DİNAMİK KOŞUM SAYISI (SIRA NO) ATAMA ---
-        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Boyut'])
+        # Boyut sütunu kaldırıldığı için sıralama Test Adı üzerinden yapılıyor
+        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Test Adı'])
         plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
         plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
 
-        # Renk paleti eşleme (BiP versiyonları ve WhatsApp için kurumsal renk tonları)
+        # Renk paleti
         color_map = {
-            'WhatsApp': '#25D366' # WhatsApp Yeşili
+            'WhatsApp': '#25D366'
         }
         bip_groups = [g for g in mevcut_gruplar if "BiP" in g]
-        if len(bip_groups) > 0: color_map[bip_groups[0]] = '#3498db' # Açık Mavi
-        if len(bip_groups) > 1: color_map[bip_groups[1]] = '#1f3a60' # Koyu Lacivert
+        if len(bip_groups) > 0: color_map[bip_groups[0]] = '#3498db'
+        if len(bip_groups) > 1: color_map[bip_groups[1]] = '#1f3a60'
 
         # --- GRAFİK: İNDİRME (DOWNLOAD) ---
         st.subheader(f"📥 {secilen_kalite} {secilen_tur} Dosyaları - İndirme Performansı Kıyaslaması")
@@ -213,12 +208,11 @@ if all_data:
         )
         st.plotly_chart(fig_down, use_container_width=True)
 
-        # Gelişmiş otomatik yorum motorunun basılması
         st.info(performans_yorumu(plot_df, 'İndirme Süresi'))
 
         with st.expander("📊 Filtrelenmiş Veri Tablosu"):
             st.dataframe(plot_df.sort_values(['Şebeke', 'Koşum Sayısı', 'Grup']), use_container_width=True)
     else:
-        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
+        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menuüden farklı kombinasyonlar deneyin.")
 else:
     st.error("❌ Klasörde geçerli veri içeren BiP veya Wa (WhatsApp) .xlsx dosyası bulunamadı!")

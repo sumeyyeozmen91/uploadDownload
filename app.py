@@ -8,11 +8,11 @@ import glob
 st.set_page_config(page_title="BiP & WhatsApp İndirme Performansı Karşılaştırması", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP & WhatsApp İndirme Performansı Karşılaştırması")
+st.title("🚀 BiP (V5.1.23) vs BiP (V5.2.6) vs WhatsApp İndirme Performansı Karşılaştırması")
 st.markdown("""
-    Bu panelde BiP uygulamasının versiyon gelişimi ve WhatsApp (Wa) ile olan performans kıyaslaması analiz edilir:
-    * **BiP (V5.1.23) vs BiP (V5.2.6):** İki farklı sürüm arasındaki indirme performans farkları ve iyileşme oranları.
-    * **BiP (V5.2.6) vs WhatsApp:** Güncel BiP sürümünün rakip performansı ile kıyaslanması.
+    Bu panelde BiP uygulamasının versiyon gelişimi ve WhatsApp ile olan performans kıyaslaması eş zamanlı olarak analiz edilir:
+    * **BiP Sürüm Gelişimi (V5.1.23 vs V5.2.6):** İki farklı BiP sürümü arasındaki indirme süreleri ve iyileşme oranları.
+    * **BiP (V5.2.6) vs WhatsApp:** Güncel BiP sürümünün, rakip uygulama olan WhatsApp karşısındaki hız ve performans durumu.
 """)
 
 def veri_isle(file_path):
@@ -179,7 +179,6 @@ if all_data:
 
     if not plot_df.empty:
         # --- DİNAMİK KOŞUM SAYISI (SIRA NO) ATAMA ---
-        # Boyut sütunu kaldırıldığı için sıralama Test Adı üzerinden yapılıyor
         plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Test Adı'])
         plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
         plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
@@ -213,6 +212,6 @@ if all_data:
         with st.expander("📊 Filtrelenmiş Veri Tablosu"):
             st.dataframe(plot_df.sort_values(['Şebeke', 'Koşum Sayısı', 'Grup']), use_container_width=True)
     else:
-        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menuüden farklı kombinasyonlar deneyin.")
+        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:
     st.error("❌ Klasörde geçerli veri içeren BiP veya Wa (WhatsApp) .xlsx dosyası bulunamadı!")

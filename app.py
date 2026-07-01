@@ -122,4 +122,3 @@ def surum_gelisim_yorumu(df, metrik_kolonu):
             
             bip51 = row.get('BiP (V5.1.23)', None)
             bip52 = row.get('BiP (V5.2.6)', None)
-            wa = row.get('WhatsApp',

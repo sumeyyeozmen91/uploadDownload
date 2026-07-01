@@ -27,7 +27,7 @@ def veri_isle(file_path):
         except:
             df = pd.read_excel(file_path)
 
-        if df.empty:
+        if df is None or df.empty:
             return None
 
         # --- SÜTUN İSİMLERİNİ EŞLEŞTİRME VE TEMİZLEME ---
@@ -113,4 +113,27 @@ def veri_isle(file_path):
 
 # --- ÇİFT KADEMELİ DETAYLI YORUM MOTORU ---
 def surum_gelisim_yorumu(df, metrik_kolonu):
-    if df
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    stats = df.groupby(['Şebeke', 'Grup'])[metrik_kolonu].mean().unstack(level=-1)
+    
+    yorumlar.append("## 📊 Detaylı Performans Analiz Raporu")
+    
+    for seb in sorted(df['Şebeke'].unique()):
+        if seb in stats.index:
+            yorumlar.append(f"\n### 📍 {seb} Şebekesi Analiz Sonuçları")
+            row = stats.loc[seb]
+            
+            bip51 = row.get('BiP (V5.1.23)', None)
+            bip52 = row.get('BiP (V5.2.6)', None)
+            wa = row.get('WhatsApp', None)
+            
+            # --- 1. BİP SÜRÜM KIYASLAMASI (V5.1.23 vs V5.2.6) ---
+            yorumlar.append("**🔄 1. BiP Sürüm Karşılaştırması (Sürüm Gelişimi):**")
+            if pd.notna(bip51) and pd.notna(bip52):
+                if bip52 < bip51:
+                    fark_ms = int(bip51 - bip52)
+                    yuzde = (bip51 - bip52) / bip51 * 100
+                    yorumlar.append(f"- **Durum:** Güncel **BiP (V5.2.6)**, eski sürümüne (V

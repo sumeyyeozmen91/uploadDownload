@@ -274,8 +274,18 @@ if all_data:
 
         st.info(performans_yorumu(plot_df, 'Süre', secilen_islem))
 
+        # --- GÜVENLİ VERİ TABLOSU GÖSTERİMİ ---
         with st.expander("📊 Filtrelenmiş Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            st.dataframe(plot_df[['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'Şebeke', 'İşlem Türü']].sort_values(['Şebeke', 'Koşum Sayısı', 'Grup']), use_container_width=True)
+            gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'Şebeke', 'İşlem Türü', 'Koşum Sayısı']
+            mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
+            
+            # Sıralama sütunlarının varlığını kontrol et
+            siralama_sutunlari = [col for col in ['Şebeke', 'Koşum Sayısı', 'Grup'] if col in plot_df.columns]
+            
+            if siralama_sutunlari:
+                st.dataframe(plot_df[mevcut_sutunlar].sort_values(siralama_sutunlari), use_container_width=True)
+            else:
+                st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True)
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:

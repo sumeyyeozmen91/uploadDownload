@@ -11,7 +11,7 @@ st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırması", 
 st.title("🚀 BiP vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
     Bu panelde BiP ve WhatsApp uygulamalarının 4.5G (LTE) ve Wi-Fi şebekeleri üzerindeki 
-    Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları karşılaştırılır.
+    Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları analiz edilir.
 """)
 
 def veri_isle(file_path):
@@ -24,75 +24,85 @@ def veri_isle(file_path):
         if df.empty:
             return None
 
-        # --- SÜTUN İSİMLERİNİ EŞLEŞTİRME VE TEMİZLEME ---
+        # --- SÜTUN İSİMLERİNİ TEMİZLEME VE DÜZENLEME ---
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Dosya adından metadataları çekme
         fname = os.path.basename(file_path)
         clean_name = fname.replace(".xlsx", "").replace(".XLSX", "").replace(".csv", "")
         parts = clean_name.split('_')
 
-        # Varsayılan değerler
+        # Varsayılan Değerler
         medya_kalitesi = "SD"
-        medya_turu = "Genel"
+        medya_turu = "Fotoğraf"
         islem_turu = "Download"
         network = "Wi-Fi"
+        app_name = "BiP"
+        version = "Güncel"
         grup_adi = "BiP"
 
-        # Dosya ismi ayrıştırma (Örn: SD_2dkVideo_Upload_Lte.xlsx)
+        # Dosya ismi parçalarını analiz etme (Örn: SD_2dkVideo_Download_Lte_2.xlsx)
         for part in parts:
-            part_lower = part.lower()
-            if part_lower in ["sd", "hd"]:
+            p_lower = part.lower()
+            
+            # Sonda kalan sürüm/duplike numaralarını (_2, _3 vb.) es geç
+            if p_lower.isdigit() and len(p_lower) <= 2:
+                continue
+
+            if p_lower in ["sd", "hd"]:
                 medya_kalitesi = part.upper()
-            elif "video" in part_lower or "photo" in part_lower:
-                medya_turu = part
-            elif part_lower in ["download", "upload"]:
-                islem_turu = part.capitalize()
-            elif part_lower in ["lte", "4g", "4.5g"]:
+            elif "2dkvideo" in p_lower:
+                medya_turu = "2dkVideo"
+            elif "5dkvideo" in p_lower:
+                medya_turu = "5dkVideo"
+            elif "photo" in p_lower or "fotograf" in p_lower or "foto" in p_lower:
+                medya_turu = "Photo"
+            elif "video" in p_lower:
+                medya_turu = "Video"
+            elif "download" in p_lower or "indirme" in p_lower:
+                islem_turu = "Download"
+            elif "upload" in p_lower or "yukleme" in p_lower:
+                islem_turu = "Upload"
+            elif p_lower in ["lte", "4g", "4.5g"]:
                 network = "4.5G"
-            elif part_lower in ["wifi", "wi-fi", "w"]:
+            elif p_lower in ["wifi", "wi-fi", "w"]:
                 network = "Wi-Fi"
-
-        # WhatsApp / BiP ve Versiyon Ayrıştırma
-        if "wa" in clean_name.lower() or "whatsapp" in clean_name.lower():
-            app_name = "WhatsApp"
-            version = "Güncel"
-            grup_adi = "WhatsApp"
-        else:
-            app_name = "BiP"
-            if parts[0].replace('.', '').isdigit():
-                version = parts[0]
-                grup_adi = f"BiP (V{version})"
-            else:
+            elif "wa" in p_lower or "whatsapp" in p_lower:
+                app_name = "WhatsApp"
                 version = "Güncel"
-                grup_adi = "BiP"
+                grup_adi = "WhatsApp"
+            elif p_lower.replace('.', '').isdigit():
+                version = part
+                app_name = "BiP"
+                grup_adi = f"BiP (V{version})"
 
-        # --- ESNEK SÜRE HESAPLAMA (Duration / Süre / CompressDuration Desteği) ---
+        # --- SÜRE HESAPLAMA (Gelişmiş / Doğrudan Sütun Seçimi) ---
         duration_col = None
         compress_col = None
 
         for c in df.columns:
-            # Türkçe büyük/küçük harf karakter hassasiyetini çözmek için özel alt dize kontrolü
             c_check = c.lower().replace('i̇', 'i').replace('ı', 'i')
-            
             if "compressduration" in c_check or "sikistirma" in c_check:
                 compress_col = c
             elif any(k in c_check for k in ["duration", "sure", "yukleme", "indirme"]):
                 duration_col = c
 
+        # Başlıkla eşleşmezsa varsayılan olarak 2. sütunu (indeks 1) al
+        if duration_col is None and len(df.columns) >= 2:
+            duration_col = df.columns[1]
+
         if duration_col is None:
-            st.error(f"⚠️ {fname} içerisinde süre/duration sütunu bulunamadı! Mevcut Sütunlar: {list(df.columns)}")
+            st.error(f"⚠️ {fname} içinde süre sütun yapısı çözülemedi!")
             return None
 
-        # Sayısal dönüşüm temizliği
+        # Sayısal veri temizliği
         for col in [duration_col, compress_col]:
             if col and col in df.columns:
                 df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit() or ch in ['.', ',']))
                 df[col] = df[col].str.replace(',', '.')
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-        # Yükleme videolarında CompressDuration varsa topla
+        # Ham veri çıktısı CompressDuration içeriyorsa topla
         if compress_col and compress_col in df.columns:
             df['Süre'] = df[duration_col] + df[compress_col]
         else:
@@ -100,7 +110,7 @@ def veri_isle(file_path):
 
         df = df.dropna(subset=['Süre'])
 
-        # Meta sütunları ekle
+        # Tabloya Metadata Sütunlarını Ekle
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
@@ -162,7 +172,7 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
                     fark = ((ort_bip - ort_wa) / ort_wa) * 100
                     yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}**, WhatsApp'tan **%{fark:.1f} daha yavaştır.** 📉")
                     
-    return "\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli grupta veri bulunmuyor."
+    return "\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli gruplamada veri bulunmuyor."
 
 # --- VERİ TARAMA VE YÜKLEME ---
 all_files = glob.glob("*.xlsx") + glob.glob("*.XLSX")
@@ -206,7 +216,7 @@ if all_data:
         plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
         plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
 
-        # Renk paleti
+        # Renk Paleti
         color_map = {
             'WhatsApp': '#25D366',
             'BiP': '#3498db'
@@ -215,7 +225,7 @@ if all_data:
         if len(bip_groups) > 0: color_map[bip_groups[0]] = '#3498db'
         if len(bip_groups) > 1: color_map[bip_groups[1]] = '#1f3a60'
 
-        # --- GRAFİK ---
+        # --- GRAFİK GÖSTERİMİ ---
         islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
         st.subheader(f"📊 {secilen_kalite} {secilen_tur} Dosyaları - {islem_baslik} Performansı Kıyaslaması")
         

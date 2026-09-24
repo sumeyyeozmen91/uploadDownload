@@ -40,7 +40,7 @@ def veri_isle(file_path):
         network = "Wi-Fi"
         grup_adi = "BiP"
 
-        # Dosya ismi ayrıştırma (Örn: SD_2dkVideo_Upload_Wifi.xlsx veya 5.2.6_bip_4.5g_sdphoto.xlsx)
+        # Dosya ismi ayrıştırma (Örn: SD_2dkVideo_Upload_Lte.xlsx)
         for part in parts:
             part_lower = part.lower()
             if part_lower in ["sd", "hd"]:
@@ -61,7 +61,6 @@ def veri_isle(file_path):
             grup_adi = "WhatsApp"
         else:
             app_name = "BiP"
-            # Versiyon bilgisi dosya adının başında sayı ile başlıyorsa al
             if parts[0].replace('.', '').isdigit():
                 version = parts[0]
                 grup_adi = f"BiP (V{version})"
@@ -69,25 +68,27 @@ def veri_isle(file_path):
                 version = "Güncel"
                 grup_adi = "BiP"
 
-        # --- SÜRE HESAPLAMA (Duration + CompressDuration Desteği) ---
+        # --- ESNEK SÜRE HESAPLAMA (Duration / Süre / CompressDuration Desteği) ---
         duration_col = None
         compress_col = None
 
         for c in df.columns:
-            c_lower = c.lower()
-            if "compressduration" in c_lower:
+            # Türkçe büyük/küçük harf karakter hassasiyetini çözmek için özel alt dize kontrolü
+            c_check = c.lower().replace('i̇', 'i').replace('ı', 'i')
+            
+            if "compressduration" in c_check or "sikistirma" in c_check:
                 compress_col = c
-            elif "duration" in c_lower or "süre" in c_lower:
+            elif any(k in c_check for k in ["duration", "sure", "yukleme", "indirme"]):
                 duration_col = c
 
         if duration_col is None:
-            st.error(f"⚠️ {fname} içerisinde 'Duration' veya 'Süre' sütunu bulunamadı!")
+            st.error(f"⚠️ {fname} içerisinde süre/duration sütunu bulunamadı! Mevcut Sütunlar: {list(df.columns)}")
             return None
 
         # Sayısal dönüşüm temizliği
         for col in [duration_col, compress_col]:
             if col and col in df.columns:
-                df[col] = df[col].apply(lambda x: ''.join(c for c in str(x) if c.isdigit() or c in ['.', ',']))
+                df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit() or ch in ['.', ',']))
                 df[col] = df[col].str.replace(',', '.')
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 

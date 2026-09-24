@@ -11,7 +11,7 @@ st.set_page_config(page_title="BiP (V5.5.15) & WhatsApp Performans Karşılaşt�
 st.title("🚀 BiP (V5.5.15) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
     Bu panelde **BiP (Sürüm: V5.5.15)** ve WhatsApp uygulamalarının 4.5G (LTE) ve Wi-Fi şebekeleri üzerindeki 
-    Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları, dosya boyutları ve şebeke farkları analiz edilir.
+    Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları analiz edilir.
 """)
 
 def veri_isle(file_path):
@@ -162,10 +162,10 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
             if pd.notna(ort_lte) and pd.notna(ort_wifi) and ort_lte > 0 and ort_wifi > 0:
                 if ort_wifi < ort_lte:
                     fark = ((ort_lte - ort_wifi) / ort_lte) * 100
-                    yorumlar.append(f"- **{g}:** **Wi-Fi** şebekesi, 4.5G (LTE) şebekesine göre {islem_str} işlemini **%{fark:.1f} daha hızlı** tamamlamıştır. ⚡")
+                    yorumlar.append(f"- **{g}:** **Wi-Fi** şebekesi (Ort: `{ort_wifi:.1f} ms`), 4.5G (LTE) şebekesine (Ort: `{ort_lte:.1f} ms`) göre {islem_str} işlemini **%{fark:.1f} daha hızlı** tamamlamıştır. ⚡")
                 else:
                     fark = ((ort_wifi - ort_lte) / ort_wifi) * 100
-                    yorumlar.append(f"- **{g}:** **4.5G (LTE)** şebekesi, Wi-Fi şebekesine göre {islem_str} işlemini **%{fark:.1f} daha hızlı** tamamlamıştır. 📱")
+                    yorumlar.append(f"- **{g}:** **4.5G (LTE)** şebekesi (Ort: `{ort_lte:.1f} ms`), Wi-Fi şebekesine (Ort: `{ort_wifi:.1f} ms`) göre {islem_str} işlemini **%{fark:.1f} daha hızlı** tamamlamıştır. 📱")
 
     # 2. Analiz: BiP Sürüm / Rakip Karşılaştırması
     bip_versions = sorted([g for g in gruplar if "BiP" in g])
@@ -181,7 +181,7 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
             if pd.notna(ort_eski) and pd.notna(ort_yeni) and ort_eski > 0:
                 if ort_yeni < ort_eski:
                     iyilesme = ((ort_eski - ort_yeni) / ort_eski) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **{v_yeni}**, {v_eski}'e göre {islem_str} süresini **%{iyilesme:.1f} iyileştirmiştir (hızlandırmıştır).** ✅")
+                    yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **{v_yeni}** (Ort: `{ort_yeni:.1f} ms`), {v_eski}'e (Ort: `{ort_eski:.1f} ms`) göre {islem_str} süresini **%{iyilesme:.1f} iyileştirmiştir.** ✅")
                 else:
                     yavaslama = ((ort_yeni - ort_eski) / ort_eski) * 100
                     yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **{v_yeni}** sürümünde **%{yavaslama:.1f} yavaşlama** görülmüştür. ⚠️")
@@ -196,10 +196,10 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
             if pd.notna(ort_bip) and pd.notna(ort_wa) and ort_wa > 0:
                 if ort_bip < ort_wa:
                     fark = ((ort_wa - ort_bip) / ort_wa) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}**, WhatsApp'a kıyasla **%{fark:.1f} daha hızlıdır.** 🚀")
+                    yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}** (Ort: `{ort_bip:.1f} ms`), WhatsApp'a (Ort: `{ort_wa:.1f} ms`) kıyasla **%{fark:.1f} daha hızlıdır.** 🚀")
                 else:
                     fark = ((ort_bip - ort_wa) / ort_wa) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}**, WhatsApp'tan **%{fark:.1f} daha yavaştır.** 📉")
+                    yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}** (Ort: `{ort_bip:.1f} ms`), WhatsApp'tan (Ort: `{ort_wa:.1f} ms`) **%{fark:.1f} daha yavaştır.** 📉")
                     
     return "\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli veri bulunmuyor."
 
@@ -245,6 +245,25 @@ if all_data:
         plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
         plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
 
+        # --- ORTALAMA SÜRE METRİK KARTLARI ---
+        st.subheader("⏱️ Ortalama Süreler Özeti")
+        col1, col2, col3 = st.columns(3)
+
+        genel_ort = plot_df['Süre'].mean()
+        col1.metric(f"Genel Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
+
+        lte_df = plot_df[plot_df['Şebeke'] == '4.5G']
+        if not lte_df.empty:
+            lte_ort = lte_df['Süre'].mean()
+            col2.metric(f"4.5G (LTE) Ortalama Süre", f"{lte_ort:.1f} ms", f"{lte_ort/1000:.2f} sn")
+
+        wifi_df = plot_df[plot_df['Şebeke'] == 'Wi-Fi']
+        if not wifi_df.empty:
+            wifi_ort = wifi_df['Süre'].mean()
+            col3.metric(f"Wi-Fi Ortalama Süre", f"{wifi_ort:.1f} ms", f"{wifi_ort/1000:.2f} sn")
+
+        st.markdown("---")
+
         # Renk Paleti
         color_map = {
             'WhatsApp': '#25D366',
@@ -274,12 +293,26 @@ if all_data:
 
         st.info(performans_yorumu(plot_df, 'Süre', secilen_islem))
 
-        # --- GÜVENLİ VERİ TABLOSU GÖSTERİMİ ---
-        with st.expander("📊 Filtrelenmiş Veri Tablosu (Dosya Büyüklükleri Dahil)"):
+        # --- ORTALAMALAR TABLOSU VE VERİ TABLOSU ---
+        with st.expander("📌 Grup ve Şebeke Bazlı Ortalama Süreler Tablosu"):
+            summary_df = plot_df.groupby(['Grup', 'Şebeke']).agg(
+                Ortalama_Süre_ms=('Süre', 'mean'),
+                Ortalama_Süre_sn=('Süre', lambda x: x.mean() / 1000),
+                Ortalama_Boyut_MB=('Boyut (MB)', 'mean'),
+                Koşum_Sayısı=('Süre', 'count')
+            ).reset_index()
+
+            summary_df['Ortalama_Süre_ms'] = summary_df['Ortalama_Süre_ms'].round(1)
+            summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
+            summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(2)
+
+            summary_df.columns = ['Uygulama/Grup', 'Şebeke', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Koşum']
+            st.dataframe(summary_df, use_container_width=True)
+
+        with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
             gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'Şebeke', 'İşlem Türü', 'Koşum Sayısı']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
-            # Sıralama sütunlarının varlığını kontrol et
             siralama_sutunlari = [col for col in ['Şebeke', 'Koşum Sayısı', 'Grup'] if col in plot_df.columns]
             
             if siralama_sutunlari:

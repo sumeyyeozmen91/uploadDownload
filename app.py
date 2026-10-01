@@ -94,7 +94,7 @@ def veri_isle(file_path):
             duration_col = df.columns[1]
 
         if duration_col is None:
-            st.error(f"⚠️️ {fname} içinde süre sütun yapısı çözülemedi!")
+            st.error(f"⚠️ {fname} içinde süre sütun yapısı çözülemedi!")
             return None
 
         # Sayısal veri temizliği
@@ -247,7 +247,6 @@ if all_data:
 
     if not plot_df.empty:
         # --- BİREBİR RİTMİK KOŞUM SAYISI ATAMA ---
-        # Sadece Test Adındaki sayısal sıraya göre sıralıyoruz (1..10)
         plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Şebeke', 'Grup'])
         plot_df['Koşum Numarası'] = plot_df['Koşum Sırası'].astype(str) + ". Koşum"
 
@@ -325,7 +324,8 @@ if all_data:
             siralama_sutunlari = [col for col in ['Şebeke', 'Koşum Sırası', 'Grup'] if col in plot_df.columns]
             
             if siralama_sutunlari:
-                st.dataframe(plot_df[mevcut_sutunlar].sort_values(siralama_sutunlari), use_container_width=True)
+                # Düzeltildi: Önce tüm plot_df sıralanıyor, sonra mevcut_sutunlar seçiliyor.
+                st.dataframe(plot_df.sort_values(siralama_sutunlari)[mevcut_sutunlar], use_container_width=True)
             else:
                 st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True)
     else:

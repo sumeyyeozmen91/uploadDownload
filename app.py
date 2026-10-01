@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 import glob
+import re
 
 # Sayfa ayarları
 st.set_page_config(page_title="BiP (V5.5.15) & WhatsApp Performans Karşılaştırması", layout="wide")
@@ -11,7 +12,7 @@ st.set_page_config(page_title="BiP (V5.5.15) & WhatsApp Performans Karşılaşt�
 st.title("🚀 BiP (V5.5.15) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
     Bu panelde **BiP (Sürüm: V5.5.15)** ve **WhatsApp** uygulamalarının 4.5G (LTE) ve Wi-Fi şebekeleri üzerindeki 
-    Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları analiz edilir.
+    Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları ritmik koşum sırasına göre analiz edilir.
 """)
 
 def veri_isle(file_path):
@@ -41,11 +42,10 @@ def veri_isle(file_path):
         version = "V5.5.15"  # Varsayılan BiP Sürümü
         grup_adi = f"BiP ({version})"
 
-        # Dosya ismi parçalarını analiz etme (Örn: SD_2dkVideo_Wa_Download_Lte.xlsx)
+        # Dosya ismi parçalarını analiz etme
         for part in parts:
             p_lower = part.lower()
             
-            # Sonda kalan duplike dosya numaralarını (_2, _3 vb.) es geç
             if p_lower.isdigit() and len(p_lower) <= 2:
                 continue
 
@@ -90,12 +90,11 @@ def veri_isle(file_path):
             elif any(k in c_check for k in ["size", "boyut"]):
                 size_col = c
 
-        # Başlıkla eşleşmezse varsayılan olarak 2. sütunu al
         if duration_col is None and len(df.columns) >= 2:
             duration_col = df.columns[1]
 
         if duration_col is None:
-            st.error(f"⚠️ {fname} içinde süre sütun yapısı çözülemedi!")
+            st.error(f"⚠️️ {fname} içinde süre sütun yapısı çözülemedi!")
             return None
 
         # Sayısal veri temizliği
@@ -105,13 +104,11 @@ def veri_isle(file_path):
                 df[col] = df[col].str.replace(',', '.')
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-        # Ham veri çıktısı CompressDuration içeriyorsa topla
         if compress_col and compress_col in df.columns:
             df['Süre'] = df[duration_col] + df[compress_col]
         else:
             df['Süre'] = df[duration_col]
 
-        # Dosya boyutu sütununu çekme ve MB birimine dönüştürme
         if size_col and size_col in df.columns:
             df['Boyut (Bytes)'] = df[size_col]
             df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
@@ -120,6 +117,13 @@ def veri_isle(file_path):
             df['Boyut (MB)'] = 0.0
 
         df = df.dropna(subset=['Süre'])
+
+        # Ritmik Sıralama için Test Adındaki Sayıyı Çekme (Örn: '1.SD Photo' -> 1)
+        def sira_numarasi_al(test_adi):
+            match = re.search(r'(\d+)', str(test_adi))
+            return int(match.group(1)) if match else 99
+
+        df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
 
         # Tabloya Metadata Sütunlarını Ekle
         df['Uygulama'] = app_name
@@ -131,7 +135,7 @@ def veri_isle(file_path):
         df['İşlem Türü'] = islem_turu
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
         st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
@@ -157,7 +161,7 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
     wa_exists = "WhatsApp" in gruplar
 
     if bip_groups and wa_exists:
-        v_bip = bip_groups[-1] # En güncel BiP sürümü
+        v_bip = bip_groups[-1]
         yorumlar.append(f"### ⚔️ BiP ({v_bip}) vs WhatsApp Karşılaştırması ({islem_str.capitalize()})")
         
         for seb in sebekeler:
@@ -242,10 +246,13 @@ if all_data:
     ].copy()
 
     if not plot_df.empty:
-        # --- DİNAMİK KOŞUM SAYISI (SIRA NO) ATAMA ---
-        plot_df = plot_df.sort_values(by=['Şebeke', 'Grup', 'Test Adı'])
-        plot_df['Koşum Sayısı'] = plot_df.groupby(['Şebeke', 'Grup']).cumcount() + 1
-        plot_df['Koşum Sayısı'] = plot_df['Koşum Sayısı'].astype(str) + ". Koşum"
+        # --- BİREBİR RİTMİK KOŞUM SAYISI ATAMA ---
+        # Sadece Test Adındaki sayısal sıraya göre sıralıyoruz (1..10)
+        plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Şebeke', 'Grup'])
+        plot_df['Koşum Numarası'] = plot_df['Koşum Sırası'].astype(str) + ". Koşum"
+
+        # Ritmik Sıralama Düzeni
+        sirali_kosumlar = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
 
         # --- ORTALAMA SÜRE METRİK KARTLARI ---
         st.subheader("⏱️ Ortalama Süreler Özeti")
@@ -280,16 +287,16 @@ if all_data:
         st.subheader(f"📊 {secilen_kalite} {secilen_tur} Dosyaları - {islem_baslik} Performansı Kıyaslaması")
         
         fig = px.bar(
-            plot_df, x='Koşum Sayısı', y='Süre', color='Grup',
+            plot_df, x='Koşum Numarası', y='Süre', color='Grup',
             facet_col='Şebeke', barmode='group', text_auto=True,
             hover_data=['Boyut (MB)', 'Boyut (Bytes)'],
             category_orders={
                 "Şebeke": ["4.5G", "Wi-Fi"], 
                 "Grup": mevcut_gruplar,
-                "Koşum Sayısı": sorted(plot_df['Koşum Sayısı'].unique(), key=lambda x: int(x.split('.')[0]))
+                "Koşum Numarası": sirali_kosumlar
             },
             color_discrete_map=color_map,
-            labels={'Süre': 'Süre (ms)', 'Grup': 'Uygulama / Sürüm', 'Koşum Sayısı': 'Koşum Numarası'}
+            labels={'Süre': 'Süre (ms)', 'Grup': 'Uygulama / Sürüm', 'Koşum Numarası': 'Koşum Numarası'}
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -312,10 +319,10 @@ if all_data:
             st.dataframe(summary_df, use_container_width=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'Şebeke', 'İşlem Türü', 'Koşum Sayısı']
+            gosterilecek_sutunlar = ['Test Adı', 'Koşum Numarası', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'Şebeke', 'İşlem Türü']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
-            siralama_sutunlari = [col for col in ['Şebeke', 'Koşum Sayısı', 'Grup'] if col in plot_df.columns]
+            siralama_sutunlari = [col for col in ['Şebeke', 'Koşum Sırası', 'Grup'] if col in plot_df.columns]
             
             if siralama_sutunlari:
                 st.dataframe(plot_df[mevcut_sutunlar].sort_values(siralama_sutunlari), use_container_width=True)

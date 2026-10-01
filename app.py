@@ -10,7 +10,7 @@ st.set_page_config(page_title="BiP (V5.5.15) & WhatsApp Performans Karşılaşt�
 # --- BAŞLIK VE AÇIKLAMA ---
 st.title("🚀 BiP (V5.5.15) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
-    Bu panelde **BiP (Sürüm: V5.5.15)** ve WhatsApp uygulamalarının 4.5G (LTE) ve Wi-Fi şebekeleri üzerindeki 
+    Bu panelde **BiP (Sürüm: V5.5.15)** ve **WhatsApp** uygulamalarının 4.5G (LTE) ve Wi-Fi şebekeleri üzerindeki 
     Fotoğraf, 2dk Video ve 5dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları analiz edilir.
 """)
 
@@ -41,7 +41,7 @@ def veri_isle(file_path):
         version = "V5.5.15"  # Varsayılan BiP Sürümü
         grup_adi = f"BiP ({version})"
 
-        # Dosya ismi parçalarını analiz etme (Örn: SD_2dkVideo_Download_Lte_2.xlsx)
+        # Dosya ismi parçalarını analiz etme (Örn: SD_2dkVideo_Wa_Download_Lte.xlsx)
         for part in parts:
             p_lower = part.lower()
             
@@ -67,7 +67,7 @@ def veri_isle(file_path):
                 network = "4.5G"
             elif p_lower in ["wifi", "wi-fi", "w"]:
                 network = "Wi-Fi"
-            elif "wa" in p_lower or "whatsapp" in p_lower:
+            elif p_lower in ["wa", "whatsapp"]:
                 app_name = "WhatsApp"
                 version = "Güncel"
                 grup_adi = "WhatsApp"
@@ -137,7 +137,7 @@ def veri_isle(file_path):
         st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
 
-# --- PERFORMANS VE LTE/WIFI YORUM MOTORU ---
+# --- PERFORMANS VE BiP vs WA YORUM MOTORU ---
 def performans_yorumu(df, metrik_kolonu, islem_turu):
     if df.empty:
         return "Yorumlanacak veri bulunamadı."
@@ -152,9 +152,45 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
     if ort_boyut > 0:
         yorumlar.append(f"📦 **Ortalama Dosya Büyüklüğü:** `{ort_boyut:.2f} MB` ({int(df['Boyut (Bytes)'].mean()):,} Bytes)")
 
-    # 1. Analiz: LTE (4.5G) vs Wi-Fi Performans Karşılaştırması
+    # 1. Analiz: BiP vs WhatsApp Doğrudan Karşılaştırma
+    bip_groups = [g for g in gruplar if "BiP" in g]
+    wa_exists = "WhatsApp" in gruplar
+
+    if bip_groups and wa_exists:
+        v_bip = bip_groups[-1] # En güncel BiP sürümü
+        yorumlar.append(f"### ⚔️ BiP ({v_bip}) vs WhatsApp Karşılaştırması ({islem_str.capitalize()})")
+        
+        for seb in sebekeler:
+            bip_sub = df[(df['Grup'] == v_bip) & (df['Şebeke'] == seb)][metrik_kolonu]
+            wa_sub = df[(df['Grup'] == "WhatsApp") & (df['Şebeke'] == seb)][metrik_kolonu]
+            
+            if not bip_sub.empty and not wa_sub.empty:
+                ort_bip = bip_sub.mean()
+                ort_wa = wa_sub.mean()
+                
+                bip_sec = ort_bip / 1000
+                wa_sec = ort_wa / 1000
+                
+                if ort_bip < ort_wa:
+                    hiz_farki = ((ort_wa - ort_bip) / ort_wa) * 100
+                    saniye_farki = (ort_wa - ort_bip) / 1000
+                    yorumlar.append(
+                        f"- **{seb} Şebekesinde:** **BiP** ({ort_bip:.1f} ms / {bip_sec:.2f} sn), "
+                        f"WhatsApp'a ({ort_wa:.1f} ms / {wa_sec:.2f} sn) göre **{saniye_farki:.2f} saniye (%{hiz_farki:.1f}) daha hızlıdır.** 🚀"
+                    )
+                elif ort_wa < ort_bip:
+                    hiz_farki = ((ort_bip - ort_wa) / ort_wa) * 100
+                    saniye_farki = (ort_bip - ort_wa) / 1000
+                    yorumlar.append(
+                        f"- **{seb} Şebekesinde:** **WhatsApp** ({ort_wa:.1f} ms / {wa_sec:.2f} sn), "
+                        f"BiP'e ({ort_bip:.1f} ms / {bip_sec:.2f} sn) göre **{saniye_farki:.2f} saniye (%{hiz_farki:.1f}) daha hızlıdır.** 📉"
+                    )
+                else:
+                    yorumlar.append(f"- **{seb} Şebekesinde:** BiP ve WhatsApp eşit süre kaydetmiştir ({bip_sec:.2f} sn). ⚖️")
+
+    # 2. Analiz: LTE (4.5G) vs Wi-Fi Şebeke Karşılaştırması
     if len(sebekeler) >= 2:
-        yorumlar.append(f"\n### 📶 LTE (4.5G) vs Wi-Fi Şebeke Karşılaştırması ({islem_turu})")
+        yorumlar.append(f"\n### 📶 LTE (4.5G) vs Wi-Fi Şebeke Performansı")
         for g in gruplar:
             ort_lte = df[(df['Grup'] == g) & (df['Şebeke'] == "4.5G")][metrik_kolonu].mean()
             ort_wifi = df[(df['Grup'] == g) & (df['Şebeke'] == "Wi-Fi")][metrik_kolonu].mean()
@@ -162,45 +198,11 @@ def performans_yorumu(df, metrik_kolonu, islem_turu):
             if pd.notna(ort_lte) and pd.notna(ort_wifi) and ort_lte > 0 and ort_wifi > 0:
                 if ort_wifi < ort_lte:
                     fark = ((ort_lte - ort_wifi) / ort_lte) * 100
-                    yorumlar.append(f"- **{g}:** **Wi-Fi** şebekesi (Ort: `{ort_wifi:.1f} ms`), 4.5G (LTE) şebekesine (Ort: `{ort_lte:.1f} ms`) göre {islem_str} işlemini **%{fark:.1f} daha hızlı** tamamlamıştır. ⚡")
+                    yorumlar.append(f"- **{g}:** **Wi-Fi** (Ort: `{ort_wifi:.1f} ms`), 4.5G (LTE) şebekesine (Ort: `{ort_lte:.1f} ms`) göre %{fark:.1f} daha hızlıdır. ⚡")
                 else:
                     fark = ((ort_wifi - ort_lte) / ort_wifi) * 100
-                    yorumlar.append(f"- **{g}:** **4.5G (LTE)** şebekesi (Ort: `{ort_lte:.1f} ms`), Wi-Fi şebekesine (Ort: `{ort_wifi:.1f} ms`) göre {islem_str} işlemini **%{fark:.1f} daha hızlı** tamamlamıştır. 📱")
+                    yorumlar.append(f"- **{g}:** **4.5G (LTE)** (Ort: `{ort_lte:.1f} ms`), Wi-Fi şebekesine (Ort: `{ort_wifi:.1f} ms`) göre %{fark:.1f} daha hızlıdır. 📱")
 
-    # 2. Analiz: BiP Sürüm / Rakip Karşılaştırması
-    bip_versions = sorted([g for g in gruplar if "BiP" in g])
-    if len(bip_versions) >= 2:
-        v_eski = bip_versions[0]
-        v_yeni = bip_versions[1]
-        
-        yorumlar.append(f"\n### 🔄 {v_eski} vs {v_yeni} Sürüm Analizi")
-        for seb in sebekeler:
-            ort_eski = df[(df['Grup'] == v_eski) & (df['Şebeke'] == seb)][metrik_kolonu].mean()
-            ort_yeni = df[(df['Grup'] == v_yeni) & (df['Şebeke'] == seb)][metrik_kolonu].mean()
-            
-            if pd.notna(ort_eski) and pd.notna(ort_yeni) and ort_eski > 0:
-                if ort_yeni < ort_eski:
-                    iyilesme = ((ort_eski - ort_yeni) / ort_eski) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **{v_yeni}** (Ort: `{ort_yeni:.1f} ms`), {v_eski}'e (Ort: `{ort_eski:.1f} ms`) göre {islem_str} süresini **%{iyilesme:.1f} iyileştirmiştir.** ✅")
-                else:
-                    yavaslama = ((ort_yeni - ort_eski) / ort_eski) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** Yeni **{v_yeni}** sürümünde **%{yavaslama:.1f} yavaşlama** görülmüştür. ⚠️")
-
-    if "WhatsApp" in gruplar and len(bip_versions) > 0:
-        v_guncel_bip = bip_versions[-1]
-        yorumlar.append(f"\n### 🏁 {v_guncel_bip} vs WhatsApp Karşılaştırması")
-        for seb in sebekeler:
-            ort_bip = df[(df['Grup'] == v_guncel_bip) & (df['Şebeke'] == seb)][metrik_kolonu].mean()
-            ort_wa = df[(df['Grup'] == "WhatsApp") & (df['Şebeke'] == seb)][metrik_kolonu].mean()
-            
-            if pd.notna(ort_bip) and pd.notna(ort_wa) and ort_wa > 0:
-                if ort_bip < ort_wa:
-                    fark = ((ort_wa - ort_bip) / ort_wa) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}** (Ort: `{ort_bip:.1f} ms`), WhatsApp'a (Ort: `{ort_wa:.1f} ms`) kıyasla **%{fark:.1f} daha hızlıdır.** 🚀")
-                else:
-                    fark = ((ort_bip - ort_wa) / ort_wa) * 100
-                    yorumlar.append(f"- **{seb} Şebekesinde:** **{v_guncel_bip}** (Ort: `{ort_bip:.1f} ms`), WhatsApp'tan (Ort: `{ort_wa:.1f} ms`) **%{fark:.1f} daha yavaştır.** 📉")
-                    
     return "\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli veri bulunmuyor."
 
 # --- VERİ TARAMA VE YÜKLEME ---

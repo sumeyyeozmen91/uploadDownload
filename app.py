@@ -6,36 +6,32 @@ import glob
 import re
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP (V5.5.15) & WhatsApp Performans Karşılaştırması", layout="wide")
+st.set_page_config(page_title="BiP (V5.6.19) & WhatsApp Performans Karşılaştırması", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP (V5.5.15) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
+st.title("🚀 BiP (V5.6.19) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
-    Bu panelde **BiP (Sürüm: V5.5.15)** ve **WhatsApp** uygulamalarının **LTE (4.5G)** ve **Wifi** şebekeleri üzerindeki 
+    Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
     Fotoğraf ve 2dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları ritmik koşum sırasına göre analiz edilir.
 """)
 
 # İzin verilen tam dosya isimleri (Büyük/küçük harf duyarsız kontrol edilir)
 ALLOWED_FILES = {
-    # 2dk Video - LTE
     "sd_2dkvideo_download_lte",
-    "sd_2dkvideo_upload_lte",
-    "sd_2dkvideo_wa_download_lte",
-    "sd_2dkvideo_wa_upload_lte",
-    # 2dk Video - Wifi
     "sd_2dkvideo_download_wifi",
+    "sd_2dkvideo_upload_lte",
     "sd_2dkvideo_upload_wifi",
+    "sd_2dkvideo_wa_download_lte",
     "sd_2dkvideo_wa_download_wifi",
+    "sd_2dkvideo_wa_upload_lte",
     "sd_2dkvideo_wa_upload_wifi",
-    # Photo - LTE
     "sd_photo_download_lte",
-    "sd_photo_upload_lte",
-    "sd_photo_wa_download_lte",
-    "sd_photo_wa_upload_lte",
-    # Photo - Wifi
     "sd_photo_download_wifi",
+    "sd_photo_upload_lte",
     "sd_photo_upload_wifi",
+    "sd_photo_wa_download_lte",
     "sd_photo_wa_download_wifi",
+    "sd_photo_wa_upload_lte",
     "sd_photo_wa_upload_wifi"
 }
 
@@ -70,7 +66,7 @@ def veri_isle(file_path):
         is_wa = "_wa_" in base_name
         is_video = "2dkvideo" in base_name
         is_upload = "_upload_" in base_name
-        is_wifi = "wifi" in base_name
+        is_wifi = "_wifi" in base_name
 
         medya_kalitesi = "SD"
         medya_turu = "2dkVideo" if is_video else "Photo"
@@ -83,7 +79,7 @@ def veri_isle(file_path):
             grup_adi = "WhatsApp"
         else:
             app_name = "BiP"
-            version = "V5.5.15"
+            version = "V5.6.19"
             grup_adi = f"BiP ({version})"
 
         # --- SÜRE VE BOYUT HESAPLAMA ---
@@ -251,19 +247,19 @@ if all_data:
         col1, col2 = st.columns(2)
 
         genel_ort = plot_df['Süre'].mean()
-        col1.metric(f"Genel Ortalama {secilen_islem} Süresi ({secilen_sebeke})", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
+        col1.metric(f"Genel Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
 
         bip_df = plot_df[plot_df['Uygulama'] == 'BiP']
         if not bip_df.empty:
             bip_ort = bip_df['Süre'].mean()
-            col2.metric(f"BiP (V5.5.15) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
+            col2.metric(f"BiP (V5.6.19) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
 
         st.markdown("---")
 
         # Renk Paleti
         color_map = {
             'WhatsApp': '#25D366',
-            'BiP (V5.5.15)': '#3498db'
+            'BiP (V5.6.19)': '#3498db'
         }
 
         # --- GRAFİK GÖSTERİMİ ---
@@ -302,7 +298,7 @@ if all_data:
             st.dataframe(summary_df, use_container_width=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            gosterilecek_sutunlar = ['Test Adı', 'Koşum Numarası', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'Şebeke', 'İşlem Türü']
+            gosterilecek_sutunlar = ['Test Adı', 'Koşum Numarası', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
             siralama_sutunlari = [col for col in ['Koşum Sırası', 'Grup'] if col in plot_df.columns]

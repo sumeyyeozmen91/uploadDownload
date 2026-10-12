@@ -161,7 +161,3 @@ def veri_isle(file_path):
         df['Versiyon'] = version
         df['Şebeke'] = network
         df['Grup'] = grup_adi
-        df['Medya Kalitesi'] = medya_kalitesi
-        df['Medya Türü'] = medya_turu
-        df['İşlem Türü'] = islem_turu
-        df['Uzantı'] = df['Test Adı'].apply

@@ -124,4 +124,69 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        if size_col and size_col in df.columns
+        if size_col and size_col in df.columns:
+            df['Boyut (Bytes)'] = df[size_col]
+            df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
+        else:
+            df['Boyut (Bytes)'] = 0
+            df['Boyut (MB)'] = 0.0
+
+        df = df.dropna(subset=['Süre'])
+
+        # Ritmik Sıralama için Test Adındaki Sayıyı Çekme (Örn: '1.SDPhoto' -> 1)
+        def sira_numarasi_al(test_adi):
+            match = re.search(r'(\d+)', str(test_adi))
+            return int(match.group(1)) if match else 99
+
+        df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
+
+        # Tabloya Metadata Sütunlarını Ekle
+        df['Uygulama'] = app_name
+        df['Versiyon'] = version
+        df['Şebeke'] = network
+        df['Grup'] = grup_adi
+        df['Medya Kalitesi'] = medya_kalitesi
+        df['Medya Türü'] = medya_turu
+        df['İşlem Türü'] = islem_turu
+        df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
+
+        return df[['Test Adı', 'Koşum Sırası', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+
+    except Exception as e:
+        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
+        return None
+
+# --- PERFORMANS VE BiP vs WA YORUM MOTORU ---
+def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
+    if df.empty:
+        return "Yorumlanacak veri bulunamadı."
+
+    yorumlar = []
+    gruplar = list(df['Grup'].unique())
+    islem_str = "indirme" if islem_turu == "Download" else "yükleme"
+
+    # Ortalama dosya boyutunu belirleme
+    ort_boyut = df['Boyut (MB)'].mean()
+    if ort_boyut > 0:
+        yorumlar.append(f"📦 **Ortalama Dosya Büyüklüğü:** `{ort_boyut:.2f} MB` ({int(df['Boyut (Bytes)'].mean()):,} Bytes)")
+
+    # BiP vs WhatsApp Doğrudan Karşılaştırma
+    bip_groups = [g for g in gruplar if "BiP" in g]
+    wa_exists = "WhatsApp" in gruplar
+
+    if bip_groups and wa_exists:
+        v_bip = bip_groups[-1]
+        yorumlar.append(f"### ⚔️ BiP ({v_bip}) vs WhatsApp Karşılaştırması ({islem_str.capitalize()})")
+        
+        bip_sub = df[df['Grup'] == v_bip][metrik_kolonu]
+        wa_sub = df[df['Grup'] == "WhatsApp"][metrik_kolonu]
+        
+        if not bip_sub.empty and not wa_sub.empty:
+            ort_bip = bip_sub.mean()
+            ort_wa = wa_sub.mean()
+            
+            bip_sec = ort_bip / 1000
+            wa_sec = ort_wa / 1000
+            
+            if ort_bip < ort_wa:
+                hiz_farki = ((ort

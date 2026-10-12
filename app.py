@@ -205,18 +205,21 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
             wa_sec = ort_wa / 1000
             
             if ort_bip < ort_wa:
-                hiz_farki = ((ort_wa - ort_bip) / ort_wa) * 100
+                # HIZ FARKI HESAPLAMASI (Hız = 1 / Süre mantığı ile)
+                # BiP ne kadar daha hızlı = ((Wa_Süresi / BiP_Süresi) - 1) * 100
+                hiz_farki = ((ort_wa / ort_bip) - 1) * 100
                 saniye_farki = (ort_wa - ort_bip) / 1000
                 yorumlar.append(
                     f"- **{sebeke_turu} Şebekesinde:** **BiP** ({ort_bip:.1f} ms / {bip_sec:.2f} sn), "
-                    f"WhatsApp'a ({ort_wa:.1f} ms / {wa_sec:.2f} sn) göre **{saniye_farki:.2f} saniye (%{hiz_farki:.1f}) daha hızlıdır.** 🚀"
+                    f"WhatsApp'a ({ort_wa:.1f} ms / {wa_sec:.2f} sn) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 🚀"
                 )
             elif ort_wa < ort_bip:
-                hiz_farki = ((ort_bip - ort_wa) / ort_wa) * 100
+                # WhatsApp ne kadar daha hızlı = ((BiP_Süresi / Wa_Süresi) - 1) * 100
+                hiz_farki = ((ort_bip / ort_wa) - 1) * 100
                 saniye_farki = (ort_bip - ort_wa) / 1000
                 yorumlar.append(
                     f"- **{sebeke_turu} Şebekesinde:** **WhatsApp** ({ort_wa:.1f} ms / {wa_sec:.2f} sn), "
-                    f"BiP'e ({ort_bip:.1f} ms / {bip_sec:.2f} sn) göre **{saniye_farki:.2f} saniye (%{hiz_farki:.1f}) daha hızlıdır.** 📉"
+                    f"BiP'e ({ort_bip:.1f} ms / {bip_sec:.2f} sn) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 📉"
                 )
             else:
                 yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** BiP ve WhatsApp eşit süre kaydetmiştir ({bip_sec:.2f} sn). ⚖️")

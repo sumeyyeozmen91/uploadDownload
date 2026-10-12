@@ -74,6 +74,7 @@ def veri_isle(file_path):
         # 16 Özel Dosya Mimarisine Göre Metadata Belirleme
         is_wa = "_wa_" in base_name
         is_video = "2dkvideo" in base_name
+        is_photo = "photo" in base_name
         is_upload = "_upload_" in base_name
         is_wifi = "_wifi" in base_name
 
@@ -124,16 +125,27 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        # Boyut Ataması ve WhatsApp 2dkVideo İçin 32 MB Sabitlemesi
-        if is_wa and is_video:
-            df['Boyut (MB)'] = 32.0
-            df['Boyut (Bytes)'] = 32 * 1024 * 1024
-        elif size_col and size_col in df.columns:
-            df['Boyut (Bytes)'] = df[size_col]
-            df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
+        # --- BOYUT ATAMALARI VE WA SABİTLEMELERİ ---
+        if is_wa:
+            if is_video:
+                df['Boyut (MB)'] = 32.0
+                df['Boyut (Bytes)'] = 32 * 1024 * 1024
+            elif is_photo:
+                if is_upload:
+                    # WA Photo Upload: 38 KB -> MB
+                    df['Boyut (MB)'] = round(38 / 1024, 4)
+                    df['Boyut (Bytes)'] = 38 * 1024
+                else:
+                    # WA Photo Download: 26 KB -> MB
+                    df['Boyut (MB)'] = round(26 / 1024, 4)
+                    df['Boyut (Bytes)'] = 26 * 1024
         else:
-            df['Boyut (Bytes)'] = 0
-            df['Boyut (MB)'] = 0.0
+            if size_col and size_col in df.columns:
+                df['Boyut (Bytes)'] = df[size_col]
+                df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
+            else:
+                df['Boyut (Bytes)'] = 0
+                df['Boyut (MB)'] = 0.0
 
         df = df.dropna(subset=['Süre'])
 
@@ -172,7 +184,7 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
     # Ortalama dosya boyutunu belirleme
     ort_boyut = df['Boyut (MB)'].mean()
     if ort_boyut > 0:
-        yorumlar.append(f"📦 **Ortalama Dosya Büyüklüğü:** `{ort_boyut:.2f} MB` ({int(df['Boyut (Bytes)'].mean()):,} Bytes)")
+        yorumlar.append(f"📦 **Ortalama Dosya Büyüklüğü:** `{ort_boyut:.4f} MB` ({int(df['Boyut (Bytes)'].mean()):,} Bytes)")
 
     # BiP vs WhatsApp Doğrudan Karşılaştırma
     bip_groups = [g for g in gruplar if "BiP" in g]
@@ -305,7 +317,7 @@ if all_data:
 
             summary_df['Ortalama_Süre_ms'] = summary_df['Ortalama_Süre_ms'].round(1)
             summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
-            summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(2)
+            summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
 
             summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Koşum']
             st.dataframe(summary_df, use_container_width=True)

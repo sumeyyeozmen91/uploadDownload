@@ -8,11 +8,19 @@ import re
 # Sayfa ayarları
 st.set_page_config(page_title="BiP (V5.6.19) & WhatsApp Performans Karşılaştırması", layout="wide")
 
+# --- CİHAZ VE TELEFON BİLGİLERİ ---
+UPLOAD_DEVICE = "Galaxy S21 FE 5G (+905316892026)"
+DOWNLOAD_DEVICE = "Galaxy A51 (+905360301821)"
+
 # --- BAŞLIK VE AÇIKLAMA ---
 st.title("🚀 BiP (V5.6.19) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
-st.markdown("""
+st.markdown(f"""
     Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
     Fotoğraf ve 2dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları ritmik koşum sırasına göre analiz edilir.
+
+    📱 **Test Cihaz Bilgileri:**
+    - **Yükleme (Upload) Cihazı:** `{UPLOAD_DEVICE}`
+    - **İndirme (Download) Cihazı:** `{DOWNLOAD_DEVICE}`
 """)
 
 # İzin verilen tam dosya isimleri (Büyük/küçük harf duyarsız kontrol edilir)
@@ -72,6 +80,7 @@ def veri_isle(file_path):
         medya_turu = "2dkVideo" if is_video else "Photo"
         islem_turu = "Upload" if is_upload else "Download"
         network = "Wifi" if is_wifi else "4.5G (LTE)"
+        cihaz_bilgisi = UPLOAD_DEVICE if is_upload else DOWNLOAD_DEVICE
 
         if is_wa:
             app_name = "WhatsApp"
@@ -139,9 +148,10 @@ def veri_isle(file_path):
         df['Medya Kalitesi'] = medya_kalitesi
         df['Medya Türü'] = medya_turu
         df['İşlem Türü'] = islem_turu
+        df['Test Cihazı'] = cihaz_bilgisi
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Koşum Sırası', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü', 'Test Cihazı']]
 
     except Exception as e:
         st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
@@ -155,11 +165,14 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
     yorumlar = []
     gruplar = list(df['Grup'].unique())
     islem_str = "indirme" if islem_turu == "Download" else "yükleme"
+    aktif_cihaz = UPLOAD_DEVICE if islem_turu == "Upload" else DOWNLOAD_DEVICE
 
     # Ortalama dosya boyutunu belirleme
     ort_boyut = df['Boyut (MB)'].mean()
     if ort_boyut > 0:
         yorumlar.append(f"📦 **Ortalama Dosya Büyüklüğü:** `{ort_boyut:.2f} MB` ({int(df['Boyut (Bytes)'].mean()):,} Bytes)")
+
+    yorumlar.append(f"📱 **İşlemi Yapan Cihaz:** `{aktif_cihaz}`")
 
     # BiP vs WhatsApp Doğrudan Karşılaştırma
     bip_groups = [g for g in gruplar if "BiP" in g]
@@ -244,7 +257,7 @@ if all_data:
 
         # --- ORTALAMA SÜRE METRİK KARTLARI ---
         st.subheader("⏱️ Ortalama Süreler Özeti")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
 
         genel_ort = plot_df['Süre'].mean()
         col1.metric(f"Genel Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
@@ -253,6 +266,9 @@ if all_data:
         if not bip_df.empty:
             bip_ort = bip_df['Süre'].mean()
             col2.metric(f"BiP (V5.6.19) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
+
+        aktif_cihaz_kisa = "S21 FE 5G (Upload)" if secilen_islem == "Upload" else "A51 (Download)"
+        col3.metric("Kullanılan Test Cihazı", aktif_cihaz_kisa)
 
         st.markdown("---")
 
@@ -269,7 +285,7 @@ if all_data:
         fig = px.bar(
             plot_df, x='Koşum Numarası', y='Süre', color='Grup',
             barmode='group', text_auto=True,
-            hover_data=['Boyut (MB)', 'Boyut (Bytes)'],
+            hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Test Cihazı'],
             category_orders={
                 "Grup": mevcut_gruplar,
                 "Koşum Numarası": sirali_kosumlar
@@ -297,8 +313,8 @@ if all_data:
             summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Koşum']
             st.dataframe(summary_df, use_container_width=True)
 
-        with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            gosterilecek_sutunlar = ['Test Adı', 'Koşum Numarası', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
+        with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Cihaz Bilgisi Dahil)"):
+            gosterilecek_sutunlar = ['Test Adı', 'Koşum Numarası', 'Süre', 'Boyut (MB)', 'Grup', 'İşlem Türü', 'Şebeke', 'Test Cihazı']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
             siralama_sutunlari = [col for col in ['Koşum Sırası', 'Grup'] if col in plot_df.columns]

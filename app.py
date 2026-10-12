@@ -124,7 +124,11 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        if size_col and size_col in df.columns:
+        # Boyut Ataması ve WhatsApp 2dkVideo İçin 32 MB Sabitlemesi
+        if is_wa and is_video:
+            df['Boyut (MB)'] = 32.0
+            df['Boyut (Bytes)'] = 32 * 1024 * 1024
+        elif size_col and size_col in df.columns:
             df['Boyut (Bytes)'] = df[size_col]
             df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
         else:

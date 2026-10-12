@@ -74,4 +74,94 @@ def veri_isle(file_path):
         # 16 Özel Dosya Mimarisine Göre Metadata Belirleme
         is_wa = "_wa_" in base_name
         is_video = "2dkvideo" in base_name
-        is
+        is_photo = "photo" in base_name
+        is_upload = "_upload_" in base_name
+        is_wifi = "_wifi" in base_name
+
+        medya_kalitesi = "SD"
+        medya_turu = "2dkVideo" if is_video else "Photo"
+        islem_turu = "Upload" if is_upload else "Download"
+        network = "Wifi" if is_wifi else "4.5G (LTE)"
+
+        if is_wa:
+            app_name = "WhatsApp"
+            version = "Güncel"
+            grup_adi = "WhatsApp"
+        else:
+            app_name = "BiP"
+            version = "V5.6.19"
+            grup_adi = f"BiP ({version})"
+
+        # --- SÜRE VE BOYUT HESAPLAMA ---
+        duration_col = None
+        compress_col = None
+        size_col = None
+
+        for c in df.columns:
+            c_check = c.lower().replace('i̇', 'i').replace('ı', 'i')
+            if "compressduration" in c_check or "sikistirma" in c_check:
+                compress_col = c
+            elif any(k in c_check for k in ["duration", "sure", "yukleme", "indirme"]):
+                duration_col = c
+            elif any(k in c_check for k in ["size", "boyut"]):
+                size_col = c
+
+        if duration_col is None and len(df.columns) >= 2:
+            duration_col = df.columns[1]
+
+        if duration_col is None:
+            st.error(f"⚠️ {fname} içinde süre sütun yapısı çözülemedi!")
+            return None
+
+        # Sayısal veri temizliği
+        for col in [duration_col, compress_col, size_col]:
+            if col and col in df.columns:
+                df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit() or ch in ['.', ',']))
+                df[col] = df[col].str.replace(',', '.')
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+        if compress_col and compress_col in df.columns:
+            df['Süre'] = df[duration_col] + df[compress_col]
+        else:
+            df['Süre'] = df[duration_col]
+
+        # --- BOYUT ATAMALARI VE WA SABİTLEMELERİ ---
+        if is_wa:
+            if is_video:
+                df['Boyut (MB)'] = 32.0
+                df['Boyut (Bytes)'] = 32 * 1024 * 1024
+            elif is_photo:
+                if is_upload:
+                    # WA Photo Upload: 38 KB
+                    df['Boyut (MB)'] = round(38 / 1024, 4)
+                    df['Boyut (Bytes)'] = 38 * 1024
+                else:
+                    # WA Photo Download: 26 KB
+                    df['Boyut (MB)'] = round(26 / 1024, 4)
+                    df['Boyut (Bytes)'] = 26 * 1024
+        else:
+            if size_col and size_col in df.columns:
+                df['Boyut (Bytes)'] = df[size_col]
+                df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
+            else:
+                df['Boyut (Bytes)'] = 0
+                df['Boyut (MB)'] = 0.0
+
+        df = df.dropna(subset=['Süre'])
+
+        # Ritmik Sıralama için Test Adındaki Sayıyı Çekme (Örn: '1.SDPhoto' -> 1)
+        def sira_numarasi_al(test_adi):
+            match = re.search(r'(\d+)', str(test_adi))
+            return int(match.group(1)) if match else 99
+
+        df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
+
+        # Tabloya Metadata Sütunlarını Ekle
+        df['Uygulama'] = app_name
+        df['Versiyon'] = version
+        df['Şebeke'] = network
+        df['Grup'] = grup_adi
+        df['Medya Kalitesi'] = medya_kalitesi
+        df['Medya Türü'] = medya_turu
+        df['İşlem Türü'] = islem_turu
+        df['Uzantı'] = df['Test Adı'].apply

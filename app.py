@@ -9,10 +9,10 @@ import re
 st.set_page_config(page_title="BiP (V5.6.19) & WhatsApp Performans Karşılaştırması", layout="wide")
 
 # --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP (V5.6.19) vs WhatsApp İndirme & Yükleme Performansı Analiz Paneli")
+st.title("🚀 BiP (V5.6.19) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
     Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
-    Fotoğraf ve 2dk Video indirme/yükleme performansları, ortalama süreleri ve dosya boyutları ritmik koşum sırasına göre analiz edilir.
+    farklı dosya türlerinin (Fotoğraf, Video, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
 """)
 
 # --- CİHAZ VE NUMARA BİLGİLERİ (ANA SAYFA) ---
@@ -24,24 +24,27 @@ with col_down:
 
 st.markdown("---")
 
-# İzin verilen tam dosya isimleri (Büyük/küçük harf duyarsız kontrol edilir)
-ALLOWED_FILES = {
-    "sd_2dkvideo_download_lte",
-    "sd_2dkvideo_download_wifi",
-    "sd_2dkvideo_upload_lte",
-    "sd_2dkvideo_upload_wifi",
-    "sd_2dkvideo_wa_download_lte",
-    "sd_2dkvideo_wa_download_wifi",
-    "sd_2dkvideo_wa_upload_lte",
-    "sd_2dkvideo_wa_upload_wifi",
-    "sd_photo_download_lte",
-    "sd_photo_download_wifi",
-    "sd_photo_upload_lte",
-    "sd_photo_upload_wifi",
-    "sd_photo_wa_download_lte",
-    "sd_photo_wa_download_wifi",
-    "sd_photo_wa_upload_lte",
-    "sd_photo_wa_upload_wifi"
+# --- İZİN VERİLEN DOSYA LİSTESİ (DİNAMİK ÜRETİM) ---
+PREFIXES = ["mp4", "pdf", "rar", "sd_2dkvideo", "sd_photo", "txt", "xlsx", "zip"]
+NETWORKS = ["lte", "wifi"]
+OPERATIONS = ["download", "upload"]
+
+ALLOWED_FILES = set()
+for p in PREFIXES:
+    for op in OPERATIONS:
+        for net in NETWORKS:
+            ALLOWED_FILES.add(f"{p}_{op}_{net}")
+            ALLOWED_FILES.add(f"{p}_wa_{op}_{net}")
+
+MEDYA_TURU_ISIMLERI = {
+    "mp4": "MP4 Video",
+    "pdf": "PDF Belge",
+    "rar": "RAR Arşiv",
+    "sd_2dkvideo": "SD 2dk Video",
+    "sd_photo": "SD Fotoğraf",
+    "txt": "TXT Metin",
+    "xlsx": "XLSX Tablo",
+    "zip": "ZIP Arşiv"
 }
 
 def veri_isle(file_path):
@@ -52,7 +55,7 @@ def veri_isle(file_path):
         fname = os.path.basename(file_path)
         base_name = fname.split('.')[0].lower().strip()
 
-        # Sadece izin verilen 16 dosyayı filtrele
+        # İzin verilen dosya kontrolü
         if base_name not in ALLOWED_FILES:
             return None
 
@@ -71,15 +74,20 @@ def veri_isle(file_path):
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # 16 Özel Dosya Mimarisine Göre Metadata Belirleme
+        # Metadata Belirleme
         is_wa = "_wa_" in base_name
-        is_video = "2dkvideo" in base_name
-        is_photo = "photo" in base_name
         is_upload = "_upload_" in base_name
         is_wifi = "_wifi" in base_name
 
-        medya_kalitesi = "SD"
-        medya_turu = "2dkVideo" if is_video else "Photo"
+        # Hangi prefix'e ait olduğunu bulma
+        matched_prefix = "diğer"
+        for p in PREFIXES:
+            if base_name.startswith(p + "_") or f"_{p}_" in base_name:
+                matched_prefix = p
+                break
+
+        medya_kalitesi = "Standart"
+        medya_turu = MEDYA_TURU_ISIMLERI.get(matched_prefix, matched_prefix.upper())
         islem_turu = "Upload" if is_upload else "Download"
         network = "Wifi" if is_wifi else "4.5G (LTE)"
 
@@ -110,7 +118,6 @@ def veri_isle(file_path):
             duration_col = df.columns[1]
 
         if duration_col is None:
-            st.error(f"⚠️ {fname} içinde süre sütun yapısı çözülemedi!")
             return None
 
         # Sayısal veri temizliği
@@ -125,20 +132,17 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        # --- BOYUT ATAMALARI VE WA SABİTLEMELERİ ---
-        if is_wa:
-            if is_video:
-                df['Boyut (MB)'] = 32.0
-                df['Boyut (Bytes)'] = 32 * 1024 * 1024
-            elif is_photo:
-                if is_upload:
-                    # WA Photo Upload: 38 KB -> MB
-                    df['Boyut (MB)'] = round(38 / 1024, 4)
-                    df['Boyut (Bytes)'] = 38 * 1024
-                else:
-                    # WA Photo Download: 26 KB -> MB
-                    df['Boyut (MB)'] = round(26 / 1024, 4)
-                    df['Boyut (Bytes)'] = 26 * 1024
+        # --- BOYUT ATAMALARI ---
+        if is_wa and matched_prefix == "sd_2dkvideo":
+            df['Boyut (MB)'] = 32.0
+            df['Boyut (Bytes)'] = 32 * 1024 * 1024
+        elif is_wa and matched_prefix == "sd_photo":
+            if is_upload:
+                df['Boyut (MB)'] = round(38 / 1024, 4)
+                df['Boyut (Bytes)'] = 38 * 1024
+            else:
+                df['Boyut (MB)'] = round(26 / 1024, 4)
+                df['Boyut (Bytes)'] = 26 * 1024
         else:
             if size_col and size_col in df.columns:
                 df['Boyut (Bytes)'] = df[size_col]
@@ -149,14 +153,14 @@ def veri_isle(file_path):
 
         df = df.dropna(subset=['Süre'])
 
-        # Ritmik Sıralama için Test Adındaki Sayıyı Çekme (Örn: '1.SDPhoto' -> 1)
+        # Ritmik Sıralama için Test Adındaki Sayıyı Çekme
         def sira_numarasi_al(test_adi):
             match = re.search(r'(\d+)', str(test_adi))
             return int(match.group(1)) if match else 99
 
         df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
 
-        # Tabloya Metadata Sütunlarını Ekle
+        # Metadata Sütunları
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
@@ -169,7 +173,6 @@ def veri_isle(file_path):
         return df[['Test Adı', 'Koşum Sırası', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
-        st.error(f"⚠️ {os.path.basename(file_path)} işlenirken hata oluştu: {e}")
         return None
 
 # --- PERFORMANS VE BiP vs WA YORUM MOTORU ---
@@ -181,12 +184,10 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
     gruplar = list(df['Grup'].unique())
     islem_str = "indirme" if islem_turu == "Download" else "yükleme"
 
-    # Ortalama dosya boyutunu belirleme
     ort_boyut = df['Boyut (MB)'].mean()
     if ort_boyut > 0:
         yorumlar.append(f"📦 **Ortalama Dosya Büyüklüğü:** `{ort_boyut:.4f} MB` ({int(df['Boyut (Bytes)'].mean()):,} Bytes)")
 
-    # BiP vs WhatsApp Doğrudan Karşılaştırma
     bip_groups = [g for g in gruplar if "BiP" in g]
     wa_exists = "WhatsApp" in gruplar
 
@@ -205,8 +206,6 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
             wa_sec = ort_wa / 1000
             
             if ort_bip < ort_wa:
-                # HIZ FARKI HESAPLAMASI (Hız = 1 / Süre mantığı ile)
-                # BiP ne kadar daha hızlı = ((Wa_Süresi / BiP_Süresi) - 1) * 100
                 hiz_farki = ((ort_wa / ort_bip) - 1) * 100
                 saniye_farki = (ort_wa - ort_bip) / 1000
                 yorumlar.append(
@@ -214,7 +213,6 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
                     f"WhatsApp'a ({ort_wa:.1f} ms / {wa_sec:.2f} sn) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 🚀"
                 )
             elif ort_wa < ort_bip:
-                # WhatsApp ne kadar daha hızlı = ((BiP_Süresi / Wa_Süresi) - 1) * 100
                 hiz_farki = ((ort_bip / ort_wa) - 1) * 100
                 saniye_farki = (ort_bip - ort_wa) / 1000
                 yorumlar.append(
@@ -249,7 +247,7 @@ if all_data:
     secilen_islem = st.sidebar.selectbox("İşlem Türü Seçin:", islem_listesi)
 
     tur_listesi = sorted(full_df['Medya Türü'].unique())
-    secilen_tur = st.sidebar.selectbox("Medya Türü Seçin:", tur_listesi)
+    secilen_tur = st.sidebar.selectbox("Dosya / Medya Türü Seçin:", tur_listesi)
 
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Uygulamalar/Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
@@ -263,11 +261,8 @@ if all_data:
     ].copy()
 
     if not plot_df.empty:
-        # --- BİREBİR RİTMİK KOŞUM SAYISI ATAMA ---
         plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
         plot_df['Koşum Numarası'] = plot_df['Koşum Sırası'].astype(str) + ". Koşum"
-
-        # Ritmik Sıralama Düzeni
         sirali_kosumlar = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
 
         # --- ORTALAMA SÜRE METRİK KARTLARI ---
@@ -284,7 +279,6 @@ if all_data:
 
         st.markdown("---")
 
-        # Renk Paleti
         color_map = {
             'WhatsApp': '#25D366',
             'BiP (V5.6.19)': '#3498db'
@@ -292,7 +286,7 @@ if all_data:
 
         # --- GRAFİK GÖSTERİMİ ---
         islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
-        st.subheader(f"📊 SD {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
+        st.subheader(f"📊 {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
         
         fig = px.bar(
             plot_df, x='Koşum Numarası', y='Süre', color='Grup',
@@ -309,7 +303,7 @@ if all_data:
 
         st.info(performans_yorumu(plot_df, 'Süre', secilen_islem, secilen_sebeke))
 
-        # --- ORTALAMALAR TABLOSU VE VERİ TABLOSU ---
+        # --- TABLOLAR ---
         with st.expander("📌 Uygulama Bazlı Ortalama Süreler Tablosu"):
             summary_df = plot_df.groupby(['Grup']).agg(
                 Ortalama_Süre_ms=('Süre', 'mean'),
@@ -338,4 +332,4 @@ if all_data:
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:
-    st.error("❌ Klasörde belirtilen 16 adet geçerli Excel (.xlsx) veya CSV dosyası bulunamadı!")
+    st.error("❌ Klasörde geçerli Excel (.xlsx) veya CSV dosyaları bulunamadı!")

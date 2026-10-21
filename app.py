@@ -119,7 +119,7 @@ def veri_isle(file_path):
 
         for col in [duration_col, compress_col, size_col]:
             if col and col in df.columns:
-                df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(ch) if ch.isdigit() or ch in ['.', ',']))
+                df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit() or ch in ['.', ',']))
                 df[col] = df[col].str.replace(',', '.')
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
@@ -152,16 +152,14 @@ def veri_isle(file_path):
         # --- KOŞUM SIRASI ÇAKIŞMA ÖNLEME FİLTRESİ ---
         def sira_numarasi_al(test_adi):
             test_str = str(test_adi).strip()
-            # Önce satırın başındaki rakamları yakalamaya çalış (Örn: "1.MP4" veya "1_Photo")
             match = re.match(r'^(\d+)', test_str)
             if match:
                 return int(match.group(1))
             
-            # Eğer başta yoksa genel ilk rakamı al ancak boyut belirten (40, 70, 90 gibi) değerleri ele
             tum_sayilar = re.findall(r'\d+', test_str)
             for s in tum_sayilar:
                 val = int(s)
-                if val not in [40, 70, 90, 32, 38, 26]:  # Dosya boyutu olabilecek rakamları atla
+                if val not in [40, 70, 90, 32, 38, 26]:
                     return val
             return int(tum_sayilar[0]) if tum_sayilar else 99
 
@@ -230,8 +228,16 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
 
     return "\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli veri bulunmuyor."
 
-# --- VERİ TARAMA VE YÜKLEME ---
-found_files = glob.glob("*.xlsx") + glob.glob("*.XLSX") + glob.glob("*.csv") + glob.glob("*.CSV")
+# --- ÇALIŞMA DİZİNİ VE DOSYA TARAMA AYARI ---
+script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+
+# Hem küçük harfli hem büyük harfli uzantıları ve alt dizinleri kapsayan arama
+found_files = (
+    glob.glob(os.path.join(script_dir, "*.xlsx")) + 
+    glob.glob(os.path.join(script_dir, "*.XLSX")) + 
+    glob.glob(os.path.join(script_dir, "*.csv")) + 
+    glob.glob(os.path.join(script_dir, "*.CSV"))
+)
 found_files = list(set(found_files))
 
 all_data = []
@@ -337,4 +343,4 @@ if all_data:
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:
-    st.error("❌ Klasörde geçerli Excel (.xlsx) veya CSV dosyaları bulunamadı!")
+    st.error(f"❌ '{script_dir}' klasöründe geçerli Excel (.xlsx) veya CSV dosyaları bulunamadı! Lütfen dosyaların script ile aynı dizinde olduğundan emin olun.")

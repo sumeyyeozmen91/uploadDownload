@@ -55,7 +55,6 @@ def veri_isle(file_path):
         fname = os.path.basename(file_path)
         base_name = fname.split('.')[0].lower().strip()
 
-        # İzin verilen dosya kontrolü
         if base_name not in ALLOWED_FILES:
             return None
 
@@ -74,12 +73,10 @@ def veri_isle(file_path):
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Metadata Belirleme
         is_wa = "_wa_" in base_name
         is_upload = "_upload_" in base_name
         is_wifi = "_wifi" in base_name
 
-        # Hangi prefix'e ait olduğunu bulma
         matched_prefix = "diğer"
         for p in PREFIXES:
             if base_name.startswith(p + "_") or f"_{p}_" in base_name:
@@ -120,10 +117,9 @@ def veri_isle(file_path):
         if duration_col is None:
             return None
 
-        # Sayısal veri temizliği
         for col in [duration_col, compress_col, size_col]:
             if col and col in df.columns:
-                df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit() or ch in ['.', ',']))
+                df[col] = df[col].apply(lambda x: ''.join(ch for ch in str(ch) if ch.isdigit() or ch in ['.', ',']))
                 df[col] = df[col].str.replace(',', '.')
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
@@ -153,14 +149,24 @@ def veri_isle(file_path):
 
         df = df.dropna(subset=['Süre'])
 
-        # Ritmik Sıralama için Test Adındaki Sayıyı Çekme
+        # --- KOŞUM SIRASI ÇAKIŞMA ÖNLEME FİLTRESİ ---
         def sira_numarasi_al(test_adi):
-            match = re.search(r'(\d+)', str(test_adi))
-            return int(match.group(1)) if match else 99
+            test_str = str(test_adi).strip()
+            # Önce satırın başındaki rakamları yakalamaya çalış (Örn: "1.MP4" veya "1_Photo")
+            match = re.match(r'^(\d+)', test_str)
+            if match:
+                return int(match.group(1))
+            
+            # Eğer başta yoksa genel ilk rakamı al ancak boyut belirten (40, 70, 90 gibi) değerleri ele
+            tum_sayilar = re.findall(r'\d+', test_str)
+            for s in tum_sayilar:
+                val = int(s)
+                if val not in [40, 70, 90, 32, 38, 26]:  # Dosya boyutu olabilecek rakamları atla
+                    return val
+            return int(tum_sayilar[0]) if tum_sayilar else 99
 
         df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
 
-        # Metadata Sütunları
         df['Uygulama'] = app_name
         df['Versiyon'] = version
         df['Şebeke'] = network
@@ -175,7 +181,7 @@ def veri_isle(file_path):
     except Exception as e:
         return None
 
-# --- PERFORMANS VE BiP vs WA YORUM MOTORU ---
+# --- PERFORMANS YORUM MOTORU ---
 def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
     if df.empty:
         return "Yorumlanacak veri bulunamadı."
@@ -252,7 +258,6 @@ if all_data:
     mevcut_gruplar = sorted(full_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Uygulamalar/Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
 
-    # Temel Filtreleme
     plot_df = full_df[
         (full_df['Şebeke'] == secilen_sebeke) &
         (full_df['İşlem Türü'] == secilen_islem) &
@@ -265,7 +270,7 @@ if all_data:
         plot_df['Koşum Numarası'] = plot_df['Koşum Sırası'].astype(str) + ". Koşum"
         sirali_kosumlar = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
 
-        # --- ORTALAMA SÜRE METRİK KARTLARI ---
+        # --- METRİKLER ---
         st.subheader("⏱️ Ortalama Süreler Özeti")
         col1, col2 = st.columns(2)
 
@@ -284,7 +289,7 @@ if all_data:
             'BiP (V5.6.19)': '#3498db'
         }
 
-        # --- GRAFİK GÖSTERİMİ ---
+        # --- GRAFİK ---
         islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
         st.subheader(f"📊 {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
         

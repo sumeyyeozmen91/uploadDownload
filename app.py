@@ -155,7 +155,7 @@ def veri_isle(file_path):
         def sira_numarasi_al(test_adi):
             test_str = str(test_adi).strip()
             if not is_numbered_media:
-                return 0  # Diğer dosyalar için sıra numarası kullanılmayacak
+                return 0
             
             match = re.match(r'^(\d+)', test_str)
             if match:
@@ -171,9 +171,9 @@ def veri_isle(file_path):
         df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
 
         if is_numbered_media:
-            df['Test Etiketi'] = df['Koşum Sırası'].astype(str) + ". Koşum"
+            df['Grafik Etiketi'] = df['Koşum Sırası'].astype(str) + ". Koşum"
         else:
-            df['Test Etiketi'] = df['Test Adı'].astype(str)
+            df['Grafik Etiketi'] = df['Test Adı'].astype(str)
 
         df['Uygulama'] = app_name
         df['Versiyon'] = version
@@ -184,7 +184,7 @@ def veri_isle(file_path):
         df['İşlem Türü'] = islem_turu
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Koşum Sırası', 'Test Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
         return None
@@ -281,15 +281,14 @@ if all_data:
     ].copy()
 
     if not plot_df.empty:
-        # Sıralama ve Eksen Ayarları
         if secilen_tur in ["SD Fotoğraf", "SD 2dk Video"]:
             plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
-            x_ekseni = 'Test Etiketi'
+            x_ekseni = 'Grafik Etiketi'
             kategori_sralama = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
         else:
             plot_df = plot_df.sort_values(by=['Test Adı', 'Grup'])
-            x_ekseni = 'Test Etiketi'
-            kategori_sralama = list(plot_df['Test Etiketi'].unique())
+            x_ekseni = 'Grafik Etiketi'
+            kategori_sralama = list(plot_df['Grafik Etiketi'].unique())
 
         # --- METRİKLER ---
         st.subheader("⏱️ Ortalama Süreler Özeti")
@@ -346,7 +345,8 @@ if all_data:
             st.dataframe(summary_df, use_container_width=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            gosterilecek_sutunlar = ['Test Adı', 'Test Etiketi', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
+            # Sadece Test Adı, Süre ve temel bilgiler gösterilir (Koşum Numarası veya Etiket sütunları dahil edilmedi)
+            gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
             st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True)

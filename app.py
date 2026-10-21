@@ -342,14 +342,13 @@ if all_data:
             summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
 
             summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
-            st.dataframe(summary_df, use_container_width=True)
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            # Sadece Test Adı, Süre ve temel bilgiler gösterilir (Koşum Numarası veya Etiket sütunları dahil edilmedi)
             gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
-            st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True)
+            st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True, hide_index=True)
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:

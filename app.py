@@ -149,9 +149,14 @@ def veri_isle(file_path):
 
         df = df.dropna(subset=['Süre'])
 
-        # --- KOŞUM SIRASI ÇAKIŞMA ÖNLEME FİLTRESİ ---
+        # --- KOŞUM / ETİKET BELİRLEME (Sadece Photo ve SD_2dkVideo için numaralandırma) ---
+        is_numbered_media = matched_prefix in ["sd_photo", "sd_2dkvideo"]
+
         def sira_numarasi_al(test_adi):
             test_str = str(test_adi).strip()
+            if not is_numbered_media:
+                return 0  # Diğer dosyalar için sıra numarası kullanılmayacak
+            
             match = re.match(r'^(\d+)', test_str)
             if match:
                 return int(match.group(1))
@@ -159,11 +164,16 @@ def veri_isle(file_path):
             tum_sayilar = re.findall(r'\d+', test_str)
             for s in tum_sayilar:
                 val = int(s)
-                if val not in [40, 70, 90, 32, 38, 26]:
+                if val not in [40, 70, 80, 90, 32, 38, 26]:
                     return val
             return int(tum_sayilar[0]) if tum_sayilar else 99
 
         df['Koşum Sırası'] = df['Test Adı'].apply(sira_numarasi_al)
+
+        if is_numbered_media:
+            df['Test Etiketi'] = df['Koşum Sırası'].astype(str) + ". Koşum"
+        else:
+            df['Test Etiketi'] = df['Test Adı'].astype(str)
 
         df['Uygulama'] = app_name
         df['Versiyon'] = version
@@ -174,7 +184,7 @@ def veri_isle(file_path):
         df['İşlem Türü'] = islem_turu
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Koşum Sırası', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Test Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
         return None
@@ -231,7 +241,6 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
 # --- ÇALIŞMA DİZİNİ VE DOSYA TARAMA AYARI ---
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
 
-# Hem küçük harfli hem büyük harfli uzantıları ve alt dizinleri kapsayan arama
 found_files = (
     glob.glob(os.path.join(script_dir, "*.xlsx")) + 
     glob.glob(os.path.join(script_dir, "*.XLSX")) + 
@@ -272,9 +281,15 @@ if all_data:
     ].copy()
 
     if not plot_df.empty:
-        plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
-        plot_df['Koşum Numarası'] = plot_df['Koşum Sırası'].astype(str) + ". Koşum"
-        sirali_kosumlar = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
+        # Sıralama ve Eksen Ayarları
+        if secilen_tur in ["SD Fotoğraf", "SD 2dk Video"]:
+            plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
+            x_ekseni = 'Test Etiketi'
+            kategori_sralama = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
+        else:
+            plot_df = plot_df.sort_values(by=['Test Adı', 'Grup'])
+            x_ekseni = 'Test Etiketi'
+            kategori_sralama = list(plot_df['Test Etiketi'].unique())
 
         # --- METRİKLER ---
         st.subheader("⏱️ Ortalama Süreler Özeti")
@@ -300,15 +315,15 @@ if all_data:
         st.subheader(f"📊 {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
         
         fig = px.bar(
-            plot_df, x='Koşum Numarası', y='Süre', color='Grup',
+            plot_df, x=x_ekseni, y='Süre', color='Grup',
             barmode='group', text_auto=True,
             hover_data=['Boyut (MB)', 'Boyut (Bytes)'],
             category_orders={
                 "Grup": mevcut_gruplar,
-                "Koşum Numarası": sirali_kosumlar
+                x_ekseni: kategori_sralama
             },
             color_discrete_map=color_map,
-            labels={'Süre': 'Süre (ms)', 'Grup': 'Uygulama / Sürüm', 'Koşum Numarası': 'Koşum Numarası'}
+            labels={'Süre': 'Süre (ms)', 'Grup': 'Uygulama / Sürüm', x_ekseni: 'Test Dosyası / Koşum'}
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -327,19 +342,14 @@ if all_data:
             summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
             summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
 
-            summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Koşum']
+            summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
             st.dataframe(summary_df, use_container_width=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            gosterilecek_sutunlar = ['Test Adı', 'Koşum Numarası', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
+            gosterilecek_sutunlar = ['Test Adı', 'Test Etiketi', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
-            siralama_sutunlari = [col for col in ['Koşum Sırası', 'Grup'] if col in plot_df.columns]
-            
-            if siralama_sutunlari:
-                st.dataframe(plot_df.sort_values(siralama_sutunlari)[mevcut_sutunlar], use_container_width=True)
-            else:
-                st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True)
+            st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True)
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:

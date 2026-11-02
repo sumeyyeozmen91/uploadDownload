@@ -12,7 +12,7 @@ st.set_page_config(page_title="BiP (V5.6.19) & WhatsApp Performans Karşılaşt�
 st.title("🚀 BiP (V5.6.19) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
     Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
-    farklı dosya türlerinin (Fotoğraf, Video, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
+    farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
 """)
 
 # --- CİHAZ VE NUMARA BİLGİLERİ (ANA SAYFA) ---
@@ -25,7 +25,7 @@ with col_down:
 st.markdown("---")
 
 # --- İZİN VERİLEN DOSYA LİSTESİ (DİNAMİK ÜRETİM) ---
-PREFIXES = ["mp4", "pdf", "rar", "sd_2dkvideo", "sd_photo", "txt", "xlsx", "zip"]
+PREFIXES = ["hd_2dkvideo", "hd_photo", "mp4", "pdf", "rar", "sd_2dkvideo", "sd_photo", "txt", "xlsx", "zip"]
 NETWORKS = ["lte", "wifi"]
 OPERATIONS = ["download", "upload"]
 
@@ -37,6 +37,8 @@ for p in PREFIXES:
             ALLOWED_FILES.add(f"{p}_wa_{op}_{net}")
 
 MEDYA_TURU_ISIMLERI = {
+    "hd_2dkvideo": "HD 2dk Video",
+    "hd_photo": "HD Fotoğraf",
     "mp4": "MP4 Video",
     "pdf": "PDF Belge",
     "rar": "RAR Arşiv",
@@ -46,6 +48,9 @@ MEDYA_TURU_ISIMLERI = {
     "xlsx": "XLSX Tablo",
     "zip": "ZIP Arşiv"
 }
+
+NUMBERED_PREFIXES = {"sd_photo", "sd_2dkvideo", "hd_photo", "hd_2dkvideo"}
+NUMBERED_MEDYA_TURLERI = {"SD Fotoğraf", "SD 2dk Video", "HD Fotoğraf", "HD 2dk Video"}
 
 def veri_isle(file_path):
     try:
@@ -83,7 +88,13 @@ def veri_isle(file_path):
                 matched_prefix = p
                 break
 
-        medya_kalitesi = "Standart"
+        if matched_prefix.startswith("hd_"):
+            medya_kalitesi = "HD"
+        elif matched_prefix.startswith("sd_"):
+            medya_kalitesi = "SD"
+        else:
+            medya_kalitesi = "Standart"
+
         medya_turu = MEDYA_TURU_ISIMLERI.get(matched_prefix, matched_prefix.upper())
         islem_turu = "Upload" if is_upload else "Download"
         network = "Wifi" if is_wifi else "4.5G (LTE)"
@@ -128,29 +139,18 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        # --- BOYUT ATAMALARI ---
-        if is_wa and matched_prefix == "sd_2dkvideo":
-            df['Boyut (MB)'] = 32.0
-            df['Boyut (Bytes)'] = 32 * 1024 * 1024
-        elif is_wa and matched_prefix == "sd_photo":
-            if is_upload:
-                df['Boyut (MB)'] = round(38 / 1024, 4)
-                df['Boyut (Bytes)'] = 38 * 1024
-            else:
-                df['Boyut (MB)'] = round(26 / 1024, 4)
-                df['Boyut (Bytes)'] = 26 * 1024
+        # --- BOYUT ATAMALARI (Güncel Excel Verilerinden Doğrudan Okuma) ---
+        if size_col and size_col in df.columns:
+            df['Boyut (Bytes)'] = df[size_col]
+            df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(4)
         else:
-            if size_col and size_col in df.columns:
-                df['Boyut (Bytes)'] = df[size_col]
-                df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(2)
-            else:
-                df['Boyut (Bytes)'] = 0
-                df['Boyut (MB)'] = 0.0
+            df['Boyut (Bytes)'] = 0
+            df['Boyut (MB)'] = 0.0
 
         df = df.dropna(subset=['Süre'])
 
-        # --- KOŞUM / ETİKET BELİRLEME (Sadece Photo ve SD_2dkVideo için numaralandırma) ---
-        is_numbered_media = matched_prefix in ["sd_photo", "sd_2dkvideo"]
+        # --- KOŞUM / ETİKET BELİRLEME (SD/HD Photo ve SD/HD 2dkVideo için numaralandırma) ---
+        is_numbered_media = matched_prefix in NUMBERED_PREFIXES
 
         def sira_numarasi_al(test_adi):
             test_str = str(test_adi).strip()
@@ -281,7 +281,7 @@ if all_data:
     ].copy()
 
     if not plot_df.empty:
-        if secilen_tur in ["SD Fotoğraf", "SD 2dk Video"]:
+        if secilen_tur in NUMBERED_MEDYA_TURLERI:
             plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
             x_ekseni = 'Grafik Etiketi'
             kategori_sralama = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]

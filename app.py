@@ -19,9 +19,9 @@ for p in PREFIXES:
         for net in NETWORKS:
             ALLOWED_FILES.add(f"{p}_{op}_{net}")
             ALLOWED_FILES.add(f"{p}_wa_{op}_{net}")
+            ALLOWED_FILES.add(f"{p}_wa_ios_{op}_{net}")
             if p == "sd_2dkvideo":
                 ALLOWED_FILES.add(f"{p}_ios_{op}_{net}")
-                ALLOWED_FILES.add(f"{p}_wa_ios_{op}_{net}")
 
 MEDYA_TURU_ISIMLERI = {
     "hd_2dkvideo": "HD 2dk Video",

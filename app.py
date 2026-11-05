@@ -90,33 +90,33 @@ SPEEDTEST_META = {
     ("Android", "WhatsApp", "XLSX Tablo", "Wifi"): {"upload_mbps": 80.8, "download_mbps": 93.6},
     ("Android", "WhatsApp", "ZIP Arşiv", "Wifi"): {"upload_mbps": 28.6, "download_mbps": 70.1},
 
-    # iOS - BiP - 4.5G (LTE) & Wifi
-    ("iOS", "BiP", "SD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 5.05, "download_mbps": 346.0},
+    # iOS - BiP - 5G & Wifi
+    ("iOS", "BiP", "SD 2dk Video", "5G"): {"upload_mbps": 5.05, "download_mbps": 346.0},
     ("iOS", "BiP", "SD 2dk Video", "Wifi"): {"upload_mbps": 57.1, "download_mbps": 49.4},
-    ("iOS", "BiP", "SD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 27.3, "download_mbps": 45.7},
+    ("iOS", "BiP", "SD Fotoğraf", "5G"): {"upload_mbps": 27.3, "download_mbps": 45.7},
     ("iOS", "BiP", "SD Fotoğraf", "Wifi"): {"upload_mbps": 41.6, "download_mbps": 67.1},
-    ("iOS", "BiP", "MP4 Video", "4.5G (LTE)"): {"upload_mbps": 70.3, "download_mbps": 104.6},
+    ("iOS", "BiP", "MP4 Video", "5G"): {"upload_mbps": 70.3, "download_mbps": 104.6},
     ("iOS", "BiP", "MP4 Video", "Wifi"): {"upload_mbps": 17.2, "download_mbps": 93.2},
-    ("iOS", "BiP", "PDF Belge", "4.5G (LTE)"): {"upload_mbps": 69.1, "download_mbps": 104.0},
+    ("iOS", "BiP", "PDF Belge", "5G"): {"upload_mbps": 69.1, "download_mbps": 104.0},
     ("iOS", "BiP", "PDF Belge", "Wifi"): {"upload_mbps": 17.1, "download_mbps": 93.1},
-    ("iOS", "BiP", "RAR Arşiv", "4.5G (LTE)"): {"upload_mbps": 64.0, "download_mbps": 104.0},
+    ("iOS", "BiP", "RAR Arşiv", "5G"): {"upload_mbps": 64.0, "download_mbps": 104.0},
     ("iOS", "BiP", "RAR Arşiv", "Wifi"): {"upload_mbps": 90.2, "download_mbps": 93.9},
-    ("iOS", "BiP", "TXT Metin", "4.5G (LTE)"): {"upload_mbps": 57.5, "download_mbps": 100.0},
+    ("iOS", "BiP", "TXT Metin", "5G"): {"upload_mbps": 57.5, "download_mbps": 100.0},
     ("iOS", "BiP", "TXT Metin", "Wifi"): {"upload_mbps": 28.7, "download_mbps": 55.4},
-    ("iOS", "BiP", "XLSX Tablo", "4.5G (LTE)"): {"upload_mbps": 47.8, "download_mbps": 75.3},
+    ("iOS", "BiP", "XLSX Tablo", "5G"): {"upload_mbps": 47.8, "download_mbps": 75.3},
     ("iOS", "BiP", "XLSX Tablo", "Wifi"): {"upload_mbps": 54.7, "download_mbps": 65.6},
-    ("iOS", "BiP", "ZIP Arşiv", "4.5G (LTE)"): {"upload_mbps": 64.8, "download_mbps": 45.3},
+    ("iOS", "BiP", "ZIP Arşiv", "5G"): {"upload_mbps": 64.8, "download_mbps": 45.3},
     ("iOS", "BiP", "ZIP Arşiv", "Wifi"): {"upload_mbps": 28.9, "download_mbps": 66.0},
 
-    # iOS - WhatsApp - 4.5G (LTE) & Wifi
-    ("iOS", "WhatsApp", "MP4 Video", "4.5G (LTE)"): {"upload_mbps": 3.99, "download_mbps": 105.0},
-    ("iOS", "WhatsApp", "PDF Belge", "4.5G (LTE)"): {"upload_mbps": 6.13, "download_mbps": 92.6},
-    ("iOS", "WhatsApp", "SD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 7.54, "download_mbps": 122.0},
-    ("iOS", "WhatsApp", "SD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 6.80, "download_mbps": 136.0},
-    ("iOS", "WhatsApp", "RAR Arşiv", "4.5G (LTE)"): {"upload_mbps": 69.1, "download_mbps": 94.7},
-    ("iOS", "WhatsApp", "TXT Metin", "4.5G (LTE)"): {"upload_mbps": 85.6, "download_mbps": 103.0},
-    ("iOS", "WhatsApp", "XLSX Tablo", "4.5G (LTE)"): {"upload_mbps": 76.7, "download_mbps": 102.0},
-    ("iOS", "WhatsApp", "ZIP Arşiv", "4.5G (LTE)"): {"upload_mbps": 82.4, "download_mbps": 104.0},
+    # iOS - WhatsApp - 5G & Wifi
+    ("iOS", "WhatsApp", "MP4 Video", "5G"): {"upload_mbps": 3.99, "download_mbps": 105.0},
+    ("iOS", "WhatsApp", "PDF Belge", "5G"): {"upload_mbps": 6.13, "download_mbps": 92.6},
+    ("iOS", "WhatsApp", "SD Fotoğraf", "5G"): {"upload_mbps": 7.54, "download_mbps": 122.0},
+    ("iOS", "WhatsApp", "SD 2dk Video", "5G"): {"upload_mbps": 6.80, "download_mbps": 136.0},
+    ("iOS", "WhatsApp", "RAR Arşiv", "5G"): {"upload_mbps": 69.1, "download_mbps": 94.7},
+    ("iOS", "WhatsApp", "TXT Metin", "5G"): {"upload_mbps": 85.6, "download_mbps": 103.0},
+    ("iOS", "WhatsApp", "XLSX Tablo", "5G"): {"upload_mbps": 76.7, "download_mbps": 102.0},
+    ("iOS", "WhatsApp", "ZIP Arşiv", "5G"): {"upload_mbps": 82.4, "download_mbps": 104.0},
     ("iOS", "WhatsApp", "MP4 Video", "Wifi"): {"upload_mbps": 75.3, "download_mbps": 82.8},
     ("iOS", "WhatsApp", "PDF Belge", "Wifi"): {"upload_mbps": 36.8, "download_mbps": 75.5},
     ("iOS", "WhatsApp", "SD Fotoğraf", "Wifi"): {"upload_mbps": 56.9, "download_mbps": 75.8},
@@ -212,7 +212,7 @@ def veri_isle(file_path):
 
         medya_turu = MEDYA_TURU_ISIMLERI.get(matched_prefix, matched_prefix.upper())
         islem_turu = "Upload" if is_upload else "Download"
-        network = "Wifi" if is_wifi else "4.5G (LTE)"
+        network = "Wifi" if is_wifi else ("5G" if is_ios else "4.5G (LTE)")
         platform = "iOS" if is_ios else "Android"
 
         if is_wa:
@@ -395,11 +395,12 @@ if all_data:
     secilen_platform = st.sidebar.selectbox("Platform Seçin:", mevcut_platformlar)
 
     aktif_bip_surumu = "V5.6.41" if secilen_platform == "iOS" else "V5.6.19"
+    aktif_mobil_sebeke = "5G" if secilen_platform == "iOS" else "LTE"
 
     # --- BAŞLIK VE AÇIKLAMA (SEÇİLEN PLATFORMA GÖRE SÜRÜM GÖSTERİMİ) ---
     st.title(f"🚀 BiP ({aktif_bip_surumu}) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
     st.markdown(f"""
-        Bu panelde **BiP (Sürüm: {aktif_bip_surumu})** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
+        Bu panelde **BiP (Sürüm: {aktif_bip_surumu})** ve **WhatsApp** uygulamalarının {aktif_mobil_sebeke} ve Wifi şebekeleri üzerindeki 
         farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
     """)
 

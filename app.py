@@ -11,8 +11,8 @@ st.set_page_config(page_title="BiP (V5.6.19) & WhatsApp Performans Karşılaşt�
 # --- BAŞLIK VE AÇIKLAMA ---
 st.title("🚀 BiP (V5.6.19) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
 st.markdown("""
-    Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp (Android & iOS)** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
-    farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları, süreleri ve hız testi (Speedtest) verileri analiz edilir.
+    Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
+    farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
 """)
 
 # --- İZİN VERİLEN DOSYA LİSTESİ (DİNAMİK ÜRETİM) ---
@@ -44,17 +44,17 @@ MEDYA_TURU_ISIMLERI = {
 NUMBERED_PREFIXES = {"sd_photo", "sd_2dkvideo", "hd_photo", "hd_2dkvideo"}
 NUMBERED_MEDYA_TURLERI = {"SD Fotoğraf", "SD 2dk Video", "HD Fotoğraf", "HD 2dk Video"}
 
-# --- iOS SPEEDTEST VE KOŞUM ID REFERANS TABLOSU ---
-# Not: YRC (Upload Cihazı) için yalnızca Upload (U) hızı, HXC (Download Cihazı) için yalnızca Download (D) hızı baz alınır.
+# --- iOS SPEEDTEST REFERANS TABLOSU ---
+# Yükleme yapan cihazın (YRC) Upload hızı ve İndirme yapan cihazın (HXC) Download hızı baz alınır.
 IOS_SPEEDTEST_META = {
-    ("MP4 Video", "4.5G (LTE)"): {"run_id": "155673", "yrc_upload_mbps": 3.99, "hxc_download_mbps": 105.0},
-    ("PDF Belge", "4.5G (LTE)"): {"run_id": "155679", "yrc_upload_mbps": 6.13, "hxc_download_mbps": 92.6},
-    ("SD Fotoğraf", "4.5G (LTE)"): {"run_id": "155677", "yrc_upload_mbps": 7.54, "hxc_download_mbps": 122.0},
-    ("SD 2dk Video", "4.5G (LTE)"): {"run_id": "155678", "yrc_upload_mbps": 6.80, "hxc_download_mbps": 136.0},
-    ("MP4 Video", "Wifi"): {"run_id": "155680", "yrc_upload_mbps": 75.3, "hxc_download_mbps": 82.8},
-    ("PDF Belge", "Wifi"): {"run_id": "155681", "yrc_upload_mbps": 36.8, "hxc_download_mbps": 75.5},
-    ("SD Fotoğraf", "Wifi"): {"run_id": "155683", "yrc_upload_mbps": 56.9, "hxc_download_mbps": 75.8},
-    ("SD 2dk Video", "Wifi"): {"run_id": "155684", "yrc_upload_mbps": 91.6, "hxc_download_mbps": 77.7},
+    ("MP4 Video", "4.5G (LTE)"): {"upload_mbps": 3.99, "download_mbps": 105.0},
+    ("PDF Belge", "4.5G (LTE)"): {"upload_mbps": 6.13, "download_mbps": 92.6},
+    ("SD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 7.54, "download_mbps": 122.0},
+    ("SD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 6.80, "download_mbps": 136.0},
+    ("MP4 Video", "Wifi"): {"upload_mbps": 75.3, "download_mbps": 82.8},
+    ("PDF Belge", "Wifi"): {"upload_mbps": 36.8, "download_mbps": 75.5},
+    ("SD Fotoğraf", "Wifi"): {"upload_mbps": 56.9, "download_mbps": 75.8},
+    ("SD 2dk Video", "Wifi"): {"upload_mbps": 91.6, "download_mbps": 77.7},
 }
 
 def veri_isle(file_path):
@@ -106,11 +106,7 @@ def veri_isle(file_path):
         network = "Wifi" if is_wifi else "4.5G (LTE)"
         platform = "iOS" if is_ios else "Android"
 
-        if is_ios:
-            app_name = "WhatsApp"
-            version = "iOS"
-            grup_adi = "WhatsApp (iOS)"
-        elif is_wa:
+        if is_wa:
             app_name = "WhatsApp"
             version = "Güncel"
             grup_adi = "WhatsApp"
@@ -150,7 +146,7 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        # --- BOYUT ATAMALARI (Güncel Excel Verilerinden Doğrudan Okuma) ---
+        # --- BOYUT ATAMALARI ---
         if size_col and size_col in df.columns:
             df['Boyut (Bytes)'] = df[size_col]
             df['Boyut (MB)'] = (df[size_col] / (1024 * 1024)).round(4)
@@ -158,20 +154,12 @@ def veri_isle(file_path):
             df['Boyut (Bytes)'] = 0
             df['Boyut (MB)'] = 0.0
 
-        # --- iOS KOŞUM ID VE SPEEDTEST ATAMALARI ---
+        # --- SPEEDTEST ATAMALARI ---
         if is_ios:
             meta = IOS_SPEEDTEST_META.get((medya_turu, network), {})
-            df['Koşum ID'] = str(meta.get("run_id", "-"))
-            if is_upload:
-                df['Speedtest (Mbps)'] = meta.get("yrc_upload_mbps", 0.0)
-                df['Baz Alınan Cihaz Hızı'] = f"YRC Upload: {meta.get('yrc_upload_mbps', 0.0)} Mbps"
-            else:
-                df['Speedtest (Mbps)'] = meta.get("hxc_download_mbps", 0.0)
-                df['Baz Alınan Cihaz Hızı'] = f"HXC Download: {meta.get('hxc_download_mbps', 0.0)} Mbps"
+            df['Speedtest (Mbps)'] = meta.get("upload_mbps", 0.0) if is_upload else meta.get("download_mbps", 0.0)
         else:
-            df['Koşum ID'] = "-"
             df['Speedtest (Mbps)'] = 0.0
-            df['Baz Alınan Cihaz Hızı'] = "-"
 
         df = df.dropna(subset=['Süre'])
 
@@ -213,7 +201,7 @@ def veri_isle(file_path):
         df['İşlem Türü'] = islem_turu
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Koşum ID', 'Speedtest (Mbps)', 'Baz Alınan Cihaz Hızı', 'Platform', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)', 'Platform', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
         return None
@@ -233,19 +221,9 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu, platform_turu,
 
     if platform_turu == "iOS":
         meta = IOS_SPEEDTEST_META.get((medya_turu, sebeke_turu), {})
-        run_id = meta.get("run_id", "-")
-        yrc_up = meta.get("yrc_upload_mbps", "-")
-        hxc_down = meta.get("hxc_download_mbps", "-")
-        ort_sure = df[metrik_kolonu].mean()
-        ort_sn = ort_sure / 1000
-
-        yorumlar.append(f"🆔 **Koşum ID (sQedule Run ID):** `{run_id}`")
-        if islem_turu == "Upload":
-            yorumlar.append(f"📡 **Baz Alınan Speedtest Sonucu (YRC - Upload Cihazı):** `{yrc_up} Mbps` *(HXC Download Hızı: `{hxc_down} Mbps`)*")
-        else:
-            yorumlar.append(f"📡 **Baz Alınan Speedtest Sonucu (HXC - Download Cihazı):** `{hxc_down} Mbps` *(YRC Upload Hızı: `{yrc_up} Mbps`)*")
-        yorumlar.append(f"⏱️ **WhatsApp (iOS) {sebeke_turu} {islem_str.capitalize()} Performansı:** Ortalama süre **{ort_sure:.1f} ms ({ort_sn:.2f} sn)** olarak gerçekleşmiştir.")
-        return "\n\n".join(yorumlar)
+        aktif_hiz = meta.get("upload_mbps", 0.0) if islem_turu == "Upload" else meta.get("download_mbps", 0.0)
+        if aktif_hiz > 0:
+            yorumlar.append(f"📡 **Speedtest ({islem_turu} Hızı):** `{aktif_hiz} Mbps`")
 
     bip_groups = [g for g in gruplar if "BiP" in g]
     wa_exists = "WhatsApp" in gruplar
@@ -280,8 +258,12 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu, platform_turu,
                 )
             else:
                 yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** BiP ve WhatsApp eşit süre kaydetmiştir ({bip_sec:.2f} sn). ⚖️")
+    elif wa_exists:
+        ort_wa = df[df['Grup'] == "WhatsApp"][metrik_kolonu].mean()
+        wa_sec = ort_wa / 1000
+        yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** **WhatsApp** ortalama {islem_str} süresi **{ort_wa:.1f} ms ({wa_sec:.2f} sn)** olarak gerçekleşmiştir.")
 
-    return "\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli veri bulunmuyor."
+    return "\n\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli veri bulunmuyor."
 
 # --- ÇALIŞMA DİZİNİ VE DOSYA TARAMA AYARI ---
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
@@ -308,24 +290,9 @@ if all_data:
 
     platform_listesi = ["Android", "iOS"]
     mevcut_platformlar = [p for p in platform_listesi if p in full_df['Platform'].unique()]
-    secilen_platform = st.sidebar.selectbox("Platform (İşletim Sistemi) Seçin:", mevcut_platformlar)
+    secilen_platform = st.sidebar.selectbox("Platform Seçin:", mevcut_platformlar)
 
     platform_df = full_df[full_df['Platform'] == secilen_platform].copy()
-
-    # --- CİHAZ VE NUMARA BİLGİLERİ (SEÇİLEN PLATFORMA GÖRE ANA SAYFA KARTLARI) ---
-    col_up, col_down = st.columns(2)
-    if secilen_platform == "iOS":
-        with col_up:
-            st.info("📤 **Yükleme (Upload) Yapan Cihaz (YRC):**\n- **Numara:** `05396340104` \n- **Model:** iPhone 16 Pro Max")
-        with col_down:
-            st.success("📥 **İndirme (Download) Yapan Cihaz (HXC):**\n- **Numara:** `05396341373` \n- **Model:** iPhone 15 Pro Max")
-    else:
-        with col_up:
-            st.info("📤 **Yükleme (Upload) Yapan Cihaz:**\n- **Numara:** `+905316892026` \n- **Model:** Galaxy S21 FE 5G")
-        with col_down:
-            st.success("📥 **İndirme (Download) Yapan Cihaz:**\n- **Numara:** `+905360301821` \n- **Model:** Galaxy A51")
-
-    st.markdown("---")
 
     sebeke_listesi = sorted(platform_df['Şebeke'].unique())
     secilen_sebeke = st.sidebar.selectbox("Şebeke Türü Seçin:", sebeke_listesi)
@@ -338,6 +305,24 @@ if all_data:
 
     mevcut_gruplar = sorted(platform_df['Grup'].unique())
     secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Uygulamalar/Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
+
+    # --- CİHAZ VE NUMARA BİLGİLERİ (ANA SAYFA) ---
+    col_up, col_down = st.columns(2)
+    if secilen_platform == "iOS":
+        meta = IOS_SPEEDTEST_META.get((secilen_tur, secilen_sebeke), {})
+        up_speed = meta.get("upload_mbps", "-")
+        down_speed = meta.get("download_mbps", "-")
+        with col_up:
+            st.info(f"📤 **Yükleme (Upload) Yapan Cihaz:**\n- **Numara:** `05396340104` \n- **Model:** iPhone 16 Pro Max \n- **Upload Speedtest:** `{up_speed} Mbps`")
+        with col_down:
+            st.success(f"📥 **İndirme (Download) Yapan Cihaz:**\n- **Numara:** `05396341373` \n- **Model:** iPhone 15 Pro Max \n- **Download Speedtest:** `{down_speed} Mbps`")
+    else:
+        with col_up:
+            st.info("📤 **Yükleme (Upload) Yapan Cihaz:**\n- **Numara:** `+905316892026` \n- **Model:** Galaxy S21 FE 5G")
+        with col_down:
+            st.success("📥 **İndirme (Download) Yapan Cihaz:**\n- **Numara:** `+905360301821` \n- **Model:** Galaxy A51")
+
+    st.markdown("---")
 
     plot_df = platform_df[
         (platform_df['Şebeke'] == secilen_sebeke) &
@@ -357,48 +342,35 @@ if all_data:
             kategori_sralama = list(plot_df['Grafik Etiketi'].unique())
 
         # --- METRİKLER ---
-        st.subheader("⏱️ Ortalama Süreler ve Test Özeti")
-        if secilen_platform == "iOS":
+        st.subheader("⏱️ Ortalama Süreler Özeti")
+        col1, col2 = st.columns(2)
+
+        genel_ort = plot_df['Süre'].mean()
+        col1.metric(f"Genel Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
+
+        bip_df = plot_df[plot_df['Uygulama'] == 'BiP']
+        if not bip_df.empty:
+            bip_ort = bip_df['Süre'].mean()
+            col2.metric("BiP (V5.6.19) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
+        elif secilen_platform == "iOS":
             meta = IOS_SPEEDTEST_META.get((secilen_tur, secilen_sebeke), {})
-            run_id = meta.get("run_id", "-")
-            yrc_up = meta.get("yrc_upload_mbps", 0.0)
-            hxc_down = meta.get("hxc_download_mbps", 0.0)
-
-            col1, col2, col3, col4 = st.columns(4)
-            genel_ort = plot_df['Süre'].mean()
-            col1.metric(f"WhatsApp (iOS) Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
-            col2.metric("Koşum ID (sQedule Run ID)", f"#{run_id}")
-            if secilen_islem == "Upload":
-                col3.metric("YRC Upload Speedtest (Baz Alınan)", f"{yrc_up} Mbps", "YRC (iPhone 16 Pro Max)")
-                col4.metric("HXC Download Speedtest", f"{hxc_down} Mbps", "HXC (iPhone 15 Pro Max)")
-            else:
-                col3.metric("HXC Download Speedtest (Baz Alınan)", f"{hxc_down} Mbps", "HXC (iPhone 15 Pro Max)")
-                col4.metric("YRC Upload Speedtest", f"{yrc_up} Mbps", "YRC (iPhone 16 Pro Max)")
-        else:
-            col1, col2 = st.columns(2)
-            genel_ort = plot_df['Süre'].mean()
-            col1.metric(f"Genel Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
-
-            bip_df = plot_df[plot_df['Uygulama'] == 'BiP']
-            if not bip_df.empty:
-                bip_ort = bip_df['Süre'].mean()
-                col2.metric("BiP (V5.6.19) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
+            aktif_hiz = meta.get("upload_mbps", 0.0) if secilen_islem == "Upload" else meta.get("download_mbps", 0.0)
+            col2.metric(f"Speedtest ({secilen_islem} Hızı)", f"{aktif_hiz} Mbps")
 
         st.markdown("---")
 
         color_map = {
             'WhatsApp': '#25D366',
-            'WhatsApp (iOS)': '#128C7E',
             'BiP (V5.6.19)': '#3498db'
         }
 
         # --- GRAFİK ---
         islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
-        st.subheader(f"📊 [{secilen_platform}] {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı")
+        st.subheader(f"📊 {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
         
         hover_cols = ['Boyut (MB)', 'Boyut (Bytes)']
         if secilen_platform == "iOS":
-            hover_cols += ['Koşum ID', 'Baz Alınan Cihaz Hızı']
+            hover_cols.append('Speedtest (Mbps)')
 
         fig = px.bar(
             plot_df, x=x_ekseni, y='Süre', color='Grup',
@@ -416,54 +388,25 @@ if all_data:
         st.info(performans_yorumu(plot_df, 'Süre', secilen_islem, secilen_sebeke, secilen_platform, secilen_tur))
 
         # --- TABLOLAR ---
-        if secilen_platform == "iOS":
-            with st.expander("📡 Tüm iOS Koşum ID ve Speedtest Özet Tablosu (YRC Upload & HXC Download)"):
-                speed_rows = []
-                for (m_tur, net), m_val in IOS_SPEEDTEST_META.items():
-                    speed_rows.append({
-                        "Medya Türü": m_tur,
-                        "Şebeke": net,
-                        "Koşum ID": m_val["run_id"],
-                        "YRC Upload Hızı (Mbps)": m_val["yrc_upload_mbps"],
-                        "HXC Download Hızı (Mbps)": m_val["hxc_download_mbps"]
-                    })
-                st.dataframe(pd.DataFrame(speed_rows), use_container_width=True, hide_index=True)
-
         with st.expander("📌 Uygulama Bazlı Ortalama Süreler Tablosu"):
-            if secilen_platform == "iOS":
-                summary_df = plot_df.groupby(['Grup', 'Koşum ID', 'Baz Alınan Cihaz Hızı']).agg(
-                    Ortalama_Süre_ms=('Süre', 'mean'),
-                    Ortalama_Süre_sn=('Süre', lambda x: x.mean() / 1000),
-                    Ortalama_Boyut_MB=('Boyut (MB)', 'mean'),
-                    Koşum_Sayısı=('Süre', 'count')
-                ).reset_index()
+            summary_df = plot_df.groupby(['Grup']).agg(
+                Ortalama_Süre_ms=('Süre', 'mean'),
+                Ortalama_Süre_sn=('Süre', lambda x: x.mean() / 1000),
+                Ortalama_Boyut_MB=('Boyut (MB)', 'mean'),
+                Koşum_Sayısı=('Süre', 'count')
+            ).reset_index()
 
-                summary_df['Ortalama_Süre_ms'] = summary_df['Ortalama_Süre_ms'].round(1)
-                summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
-                summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
+            summary_df['Ortalama_Süre_ms'] = summary_df['Ortalama_Süre_ms'].round(1)
+            summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
+            summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
 
-                summary_df.columns = ['Uygulama/Grup', 'Koşum ID', 'Baz Alınan Speedtest', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
-            else:
-                summary_df = plot_df.groupby(['Grup']).agg(
-                    Ortalama_Süre_ms=('Süre', 'mean'),
-                    Ortalama_Süre_sn=('Süre', lambda x: x.mean() / 1000),
-                    Ortalama_Boyut_MB=('Boyut (MB)', 'mean'),
-                    Koşum_Sayısı=('Süre', 'count')
-                ).reset_index()
-
-                summary_df['Ortalama_Süre_ms'] = summary_df['Ortalama_Süre_ms'].round(1)
-                summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
-                summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
-
-                summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
-
+            summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
+            gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
             if secilen_platform == "iOS":
-                gosterilecek_sutunlar = ['Test Adı', 'Koşum ID', 'Süre', 'Speedtest (Mbps)', 'Baz Alınan Cihaz Hızı', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
-            else:
-                gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
+                gosterilecek_sutunlar.insert(4, 'Speedtest (Mbps)')
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
             st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True, hide_index=True)

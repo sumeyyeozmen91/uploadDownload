@@ -6,14 +6,7 @@ import glob
 import re
 
 # Sayfa ayarları
-st.set_page_config(page_title="BiP (V5.6.19) & WhatsApp Performans Karşılaştırması", layout="wide")
-
-# --- BAŞLIK VE AÇIKLAMA ---
-st.title("🚀 BiP (V5.6.19) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
-st.markdown("""
-    Bu panelde **BiP (Sürüm: V5.6.19)** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
-    farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
-""")
+st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırması", layout="wide")
 
 # --- İZİN VERİLEN DOSYA LİSTESİ (DİNAMİK ÜRETİM) ---
 PREFIXES = ["hd_2dkvideo", "hd_photo", "mp4", "pdf", "rar", "sd_2dkvideo", "sd_photo", "txt", "xlsx", "zip"]
@@ -26,6 +19,7 @@ for p in PREFIXES:
         for net in NETWORKS:
             ALLOWED_FILES.add(f"{p}_{op}_{net}")
             ALLOWED_FILES.add(f"{p}_wa_{op}_{net}")
+            ALLOWED_FILES.add(f"{p}_ios_{op}_{net}")
             ALLOWED_FILES.add(f"{p}_wa_ios_{op}_{net}")
 
 MEDYA_TURU_ISIMLERI = {
@@ -83,7 +77,7 @@ def veri_isle(file_path):
         df.rename(columns={df.columns[0]: 'Test Adı'}, inplace=True)
         df.columns = [str(c).strip() for c in df.columns]
 
-        is_ios = "_wa_ios_" in base_name
+        is_ios = "_ios_" in base_name
         is_wa = "_wa_" in base_name
         is_upload = "_upload_" in base_name
         is_wifi = "_wifi" in base_name
@@ -112,7 +106,7 @@ def veri_isle(file_path):
             grup_adi = "WhatsApp"
         else:
             app_name = "BiP"
-            version = "V5.6.19"
+            version = "V5.6.41" if is_ios else "V5.6.19"
             grup_adi = f"BiP ({version})"
 
         # --- SÜRE VE BOYUT HESAPLAMA ---
@@ -154,13 +148,6 @@ def veri_isle(file_path):
             df['Boyut (Bytes)'] = 0
             df['Boyut (MB)'] = 0.0
 
-        # --- SPEEDTEST ATAMALARI ---
-        if is_ios:
-            meta = IOS_SPEEDTEST_META.get((medya_turu, network), {})
-            df['Speedtest (Mbps)'] = meta.get("upload_mbps", 0.0) if is_upload else meta.get("download_mbps", 0.0)
-        else:
-            df['Speedtest (Mbps)'] = 0.0
-
         df = df.dropna(subset=['Süre'])
 
         # --- KOŞUM / ETİKET BELİRLEME (SD/HD Photo ve SD/HD 2dkVideo için numaralandırma) ---
@@ -201,7 +188,7 @@ def veri_isle(file_path):
         df['İşlem Türü'] = islem_turu
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)', 'Platform', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Platform', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
         return None
@@ -292,6 +279,15 @@ if all_data:
     mevcut_platformlar = [p for p in platform_listesi if p in full_df['Platform'].unique()]
     secilen_platform = st.sidebar.selectbox("Platform Seçin:", mevcut_platformlar)
 
+    aktif_bip_surumu = "V5.6.41" if secilen_platform == "iOS" else "V5.6.19"
+
+    # --- BAŞLIK VE AÇIKLAMA (SEÇİLEN PLATFORMA GÖRE SÜRÜM GÖSTERİMİ) ---
+    st.title(f"🚀 BiP ({aktif_bip_surumu}) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
+    st.markdown(f"""
+        Bu panelde **BiP (Sürüm: {aktif_bip_surumu})** ve **WhatsApp** uygulamalarının LTE ve Wifi şebekeleri üzerindeki 
+        farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
+    """)
+
     platform_df = full_df[full_df['Platform'] == secilen_platform].copy()
 
     sebeke_listesi = sorted(platform_df['Şebeke'].unique())
@@ -351,7 +347,7 @@ if all_data:
         bip_df = plot_df[plot_df['Uygulama'] == 'BiP']
         if not bip_df.empty:
             bip_ort = bip_df['Süre'].mean()
-            col2.metric("BiP (V5.6.19) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
+            col2.metric(f"BiP ({aktif_bip_surumu}) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
         elif secilen_platform == "iOS":
             meta = IOS_SPEEDTEST_META.get((secilen_tur, secilen_sebeke), {})
             aktif_hiz = meta.get("upload_mbps", 0.0) if secilen_islem == "Upload" else meta.get("download_mbps", 0.0)
@@ -361,21 +357,18 @@ if all_data:
 
         color_map = {
             'WhatsApp': '#25D366',
-            'BiP (V5.6.19)': '#3498db'
+            'BiP (V5.6.19)': '#3498db',
+            'BiP (V5.6.41)': '#3498db'
         }
 
         # --- GRAFİK ---
         islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
         st.subheader(f"📊 {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
-        
-        hover_cols = ['Boyut (MB)', 'Boyut (Bytes)']
-        if secilen_platform == "iOS":
-            hover_cols.append('Speedtest (Mbps)')
 
         fig = px.bar(
             plot_df, x=x_ekseni, y='Süre', color='Grup',
             barmode='group', text_auto=True,
-            hover_data=hover_cols,
+            hover_data=['Boyut (MB)', 'Boyut (Bytes)'],
             category_orders={
                 "Grup": mevcut_gruplar,
                 x_ekseni: kategori_sralama
@@ -405,8 +398,6 @@ if all_data:
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
             gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
-            if secilen_platform == "iOS":
-                gosterilecek_sutunlar.insert(4, 'Speedtest (Mbps)')
             mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
             
             st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True, hide_index=True)

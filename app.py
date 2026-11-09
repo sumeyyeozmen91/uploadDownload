@@ -394,188 +394,223 @@ for f in found_files:
 if all_data:
     full_df = pd.concat(all_data, ignore_index=True)
 
-    # --- FİLTRELER (SIDEBAR) ---
+    # --- FİLTRELER (SIDEBAR) - TEK EKRANDA 8 GRAFİK İÇİN SADECE DOSYA TÜRÜ FİLTRESİ ---
     st.sidebar.header("⚙️ Analiz Ayarları")
 
-    platform_listesi = ["Android", "iOS"]
-    mevcut_platformlar = [p for p in platform_listesi if p in full_df['Platform'].unique()]
-    secilen_platform = st.sidebar.selectbox("Platform Seçin:", mevcut_platformlar)
+    tur_listesi = sorted(full_df['Medya Türü'].unique())
+    varsayilan_tur_idx = tur_listesi.index("SD 2dk Video") if "SD 2dk Video" in tur_listesi else 0
+    secilen_tur = st.sidebar.selectbox("Dosya / Medya Türü Seçin:", tur_listesi, index=varsayilan_tur_idx)
 
-    aktif_bip_surumu = "V5.6.41" if secilen_platform == "iOS" else "V5.6.19"
-    aktif_mobil_sebeke = "5G" if secilen_platform == "iOS" else "LTE"
+    uygulama_listesi = ["BiP", "WhatsApp"]
+    secilen_uygulamalar = st.sidebar.multiselect(
+        "Grafikte Gösterilecek Uygulamalar:",
+        uygulama_listesi,
+        default=uygulama_listesi
+    )
 
-    # --- BAŞLIK VE AÇIKLAMA (SEÇİLEN PLATFORMA GÖRE SÜRÜM GÖSTERİMİ) ---
-    st.title(f"🚀 BiP ({aktif_bip_surumu}) vs WhatsApp Dosya İndirme & Yükleme Performansı Analiz Paneli")
-    st.markdown(f"""
-        Bu panelde **BiP (Sürüm: {aktif_bip_surumu})** ve **WhatsApp** uygulamalarının {aktif_mobil_sebeke} ve Wifi şebekeleri üzerindeki 
-        farklı dosya türlerinin (SD/HD Fotoğraf, SD/HD 2dk Video, MP4, PDF, ZIP, RAR, Excel, TXT vb.) indirme/yükleme performansları ve süreleri analiz edilir.
-    """)
+    # --- BAŞLIK VE CİHAZ BİLGİLERİ (POWERPOINT SLAYT ÜST BİLGİSİ FORMATI) ---
+    st.title(f"🚀 BiP vs WhatsApp — {secilen_tur} Performans Analiz Paneli")
+    st.markdown(
+        f"**{secilen_tur}** dosya tipi için **Android (BiP V5.6.19 & WhatsApp)** ve **iOS (BiP V5.6.41 & WhatsApp)** "
+        f"platformlarında **Wi-Fi** ve **LTE / 5G** şebekeleri üzerindeki **Upload / Download** performanslarının 8 grafiklik tam görünümü."
+    )
 
-    # --- CİHAZ VE NUMARA BİLGİLERİ (ANA SAYFA) ---
-    col_up, col_down = st.columns(2)
-    if secilen_platform == "iOS":
-        with col_up:
-            st.info("📤 **Yükleme (Upload) Yapan Cihaz:**\n- **Numara:** `05396340104` \n- **Model:** iPhone 16 Pro Max")
-        with col_down:
-            st.success("📥 **İndirme (Download) Yapan Cihaz:**\n- **Numara:** `05396341373` \n- **Model:** iPhone 15 Pro Max")
-    else:
-        with col_up:
-            st.info("📤 **Yükleme (Upload) Yapan Cihaz:**\n- **Numara:** `+905316892026` \n- **Model:** Galaxy S21 FE 5G")
-        with col_down:
-            st.success("📥 **İndirme (Download) Yapan Cihaz:**\n- **Numara:** `+905360301821` \n- **Model:** Galaxy A51")
+    col_and_info, col_ios_info = st.columns(2)
+    with col_and_info:
+        st.info(
+            "🤖 **Android Test Cihazları (BiP V5.6.19 & WhatsApp)**\n"
+            "- 📤 **Upload:** `Galaxy S21 FE 5G` (`+905316892026`)\n"
+            "- 📥 **Download:** `Galaxy A51` (`+905360301821`)"
+        )
+    with col_ios_info:
+        st.success(
+            "🍎 **iOS Test Cihazları (BiP V5.6.41 & WhatsApp)**\n"
+            "- 📤 **Upload:** `iPhone 16 Pro Max` (`05396340104`)\n"
+            "- 📥 **Download:** `iPhone 15 Pro Max` (`05396341373`)"
+        )
+
+    st.caption("Süre: saniye (sn)  |  Dosya boyutları küçükten büyüğe sıralıdır  |  Tekrarlanan MB ölçümleri ayrı tutulmuştur")
+    st.markdown("---")
+
+    tur_df = full_df[
+        (full_df['Medya Türü'] == secilen_tur) &
+        (full_df['Uygulama'].isin(secilen_uygulamalar))
+    ].copy()
+
+    color_map = {
+        'WhatsApp': '#25D366',
+        'BiP (V5.6.19)': '#1587CB',
+        'BiP (V5.6.41)': '#1587CB'
+    }
+
+    def _dosya_boyut_anahtari(etiket):
+        m = re.search(r'(\d+(?:\.\d+)?)', str(etiket))
+        return float(m.group(1)) if m else 0.0
+
+    def tek_grafik_ciz(container, platform_adi, sebeke_adi, islem_adi, baslik_etiketi, grafik_key):
+        with container:
+            bip_surum = "V5.6.41" if platform_adi == "iOS" else "V5.6.19"
+            baslik_renk = "#10B5B1" if platform_adi == "iOS" else "#1587CB"
+            st.markdown(
+                f"<h4 style='color:{baslik_renk}; margin-bottom:4px; font-family:Arial,sans-serif;'>"
+                f"{baslik_etiketi}</h4>",
+                unsafe_allow_html=True
+            )
+
+            sub_df = tur_df[
+                (tur_df['Platform'] == platform_adi) &
+                (tur_df['Şebeke'] == sebeke_adi) &
+                (tur_df['İşlem Türü'] == islem_adi)
+            ].copy()
+
+            # --- UYGULAMA BAZLI AYRI ORTALAMA SÜRELER (BIP VE WHATSAPP AYRI) ---
+            mcol1, mcol2 = st.columns(2)
+            bip_sub = sub_df[sub_df['Uygulama'] == 'BiP']
+            wa_sub = sub_df[sub_df['Uygulama'] == 'WhatsApp']
+
+            bip_ort_str = f"{bip_sub['Süre'].mean():.2f} sn" if not bip_sub.empty else "-"
+            wa_ort_str = f"{wa_sub['Süre'].mean():.2f} sn" if not wa_sub.empty else "-"
+
+            mcol1.metric(f"BiP ({bip_surum}) Ortalama {islem_adi}", bip_ort_str)
+            mcol2.metric(f"WhatsApp Ortalama {islem_adi}", wa_ort_str)
+
+            if not sub_df.empty:
+                if secilen_tur in NUMBERED_MEDYA_TURLERI:
+                    sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])
+                    x_ekseni = 'Grafik Etiketi'
+                    kategori_sralama = [f"{i}. Koşum" for i in sorted(sub_df['Koşum Sırası'].unique())]
+                    x_eksen_basligi = 'Koşum Sırası'
+                else:
+                    sub_df['_sira_mb'] = sub_df['Grafik Etiketi'].apply(_dosya_boyut_anahtari)
+                    sub_df = sub_df.sort_values(by=['_sira_mb', 'Boyut (Bytes)', 'Test Adı', 'Grup'])
+                    x_ekseni = 'Grafik Etiketi'
+                    kategori_sralama = list(dict.fromkeys(sub_df['Grafik Etiketi'].tolist()))
+                    x_eksen_basligi = 'Dosya Boyutu (MB)'
+
+                mevcut_gruplar = sorted(sub_df['Grup'].unique())
+                max_y = float(sub_df['Süre'].max()) if not sub_df['Süre'].empty else 1.0
+                ust_sinir = max(max_y * 1.24, 0.5)
+
+                fig = px.bar(
+                    sub_df, x=x_ekseni, y='Süre', color='Grup',
+                    barmode='group', text='Süre',
+                    hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)'],
+                    category_orders={
+                        "Grup": mevcut_gruplar,
+                        x_ekseni: kategori_sralama
+                    },
+                    color_discrete_map=color_map,
+                    labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', x_ekseni: x_eksen_basligi}
+                )
+
+                fig.update_traces(
+                    texttemplate='%{y:.2f}',
+                    textposition='outside',
+                    cliponaxis=False,
+                    textfont=dict(size=11, color='#192F47', family='Arial, sans-serif'),
+                    marker_line_color='#FFFFFF',
+                    marker_line_width=1.0
+                )
+
+                fig.update_layout(
+                    plot_bgcolor='#FFFFFF',
+                    paper_bgcolor='#F9FCFE',
+                    font=dict(family='Arial, sans-serif', size=12, color='#192F47'),
+                    bargap=0.25,
+                    bargroupgap=0.12,
+                    height=360,
+                    margin=dict(l=50, r=20, t=40, b=50),
+                    legend=dict(
+                        title_text='',
+                        orientation='h',
+                        yanchor='bottom',
+                        y=1.02,
+                        xanchor='right',
+                        x=1.0,
+                        bgcolor='rgba(255,255,255,0.85)',
+                        bordercolor='#CBD5E1',
+                        borderwidth=1,
+                        font=dict(size=11, color='#192F47')
+                    ),
+                    xaxis=dict(
+                        title=dict(text=x_eksen_basligi, font=dict(size=12, color='#192F47')),
+                        showgrid=False,
+                        showline=True,
+                        linecolor='#192F47',
+                        linewidth=1.5,
+                        ticks='outside',
+                        tickcolor='#192F47',
+                        tickfont=dict(size=11, color='#192F47')
+                    ),
+                    yaxis=dict(
+                        title=dict(text='Süre (sn)', font=dict(size=12, color='#192F47')),
+                        range=[0, ust_sinir],
+                        showgrid=True,
+                        gridcolor='#CBD5E1',
+                        gridwidth=1,
+                        zeroline=True,
+                        zerolinecolor='#192F47',
+                        zerolinewidth=1.5,
+                        showline=True,
+                        linecolor='#192F47',
+                        linewidth=1.5,
+                        ticks='outside',
+                        tickcolor='#192F47',
+                        tickfont=dict(size=11, color='#192F47')
+                    )
+                )
+
+                st.plotly_chart(fig, use_container_width=True, key=grafik_key)
+            else:
+                bos_fig = px.bar(title="")
+                bos_fig.update_layout(
+                    plot_bgcolor='#FFFFFF',
+                    paper_bgcolor='#F9FCFE',
+                    height=360,
+                    margin=dict(l=50, r=20, t=40, b=50),
+                    xaxis=dict(visible=False),
+                    yaxis=dict(visible=False),
+                    annotations=[dict(
+                        text=f"{baslik_etiketi}<br>için henüz veri bulunmamaktadır",
+                        xref="paper", yref="paper",
+                        x=0.5, y=0.5, showarrow=False,
+                        font=dict(size=13, color="#64748B", family="Arial, sans-serif")
+                    )]
+                )
+                st.plotly_chart(bos_fig, use_container_width=True, key=grafik_key)
+
+    # =========================================================================
+    # BÖLÜM 1: WI-FI PERFORMANSI (4 GRAFİK: ANDROID U/D & iOS U/D)
+    # =========================================================================
+    st.subheader(f"📶 BiP & WhatsApp Wi-Fi | {secilen_tur} Upload / Download (4 Grafik)")
+    wifi_row1_col1, wifi_row1_col2 = st.columns(2)
+    tek_grafik_ciz(wifi_row1_col1, "Android", "Wifi", "Upload", "Android · Wi-Fi Upload", "chart_and_wifi_up")
+    tek_grafik_ciz(wifi_row1_col2, "iOS", "Wifi", "Upload", "iOS · Wi-Fi Upload", "chart_ios_wifi_up")
+
+    wifi_row2_col1, wifi_row2_col2 = st.columns(2)
+    tek_grafik_ciz(wifi_row2_col1, "Android", "Wifi", "Download", "Android · Wi-Fi Download", "chart_and_wifi_down")
+    tek_grafik_ciz(wifi_row2_col2, "iOS", "Wifi", "Download", "iOS · Wi-Fi Download", "chart_ios_wifi_down")
 
     st.markdown("---")
 
-    platform_df = full_df[full_df['Platform'] == secilen_platform].copy()
+    # =========================================================================
+    # BÖLÜM 2: LTE / 5G PERFORMANSI (4 GRAFİK: ANDROID U/D & iOS U/D)
+    # =========================================================================
+    st.subheader(f"📡 BiP & WhatsApp LTE / 5G | {secilen_tur} Upload / Download (4 Grafik)")
+    lte_row1_col1, lte_row1_col2 = st.columns(2)
+    tek_grafik_ciz(lte_row1_col1, "Android", "4.5G (LTE)", "Upload", "Android · 4.5G (LTE) Upload", "chart_and_lte_up")
+    tek_grafik_ciz(lte_row1_col2, "iOS", "5G", "Upload", "iOS · 5G (LTE) Upload", "chart_ios_lte_up")
 
-    sebeke_listesi = sorted(platform_df['Şebeke'].unique())
-    secilen_sebeke = st.sidebar.selectbox("Şebeke Türü Seçin:", sebeke_listesi)
+    lte_row2_col1, lte_row2_col2 = st.columns(2)
+    tek_grafik_ciz(lte_row2_col1, "Android", "4.5G (LTE)", "Download", "Android · 4.5G (LTE) Download", "chart_and_lte_down")
+    tek_grafik_ciz(lte_row2_col2, "iOS", "5G", "Download", "iOS · 5G (LTE) Download", "chart_ios_lte_down")
 
-    islem_listesi = sorted(platform_df['İşlem Türü'].unique())
-    secilen_islem = st.sidebar.selectbox("İşlem Türü Seçin:", islem_listesi)
+    st.markdown("---")
 
-    tur_listesi = sorted(platform_df['Medya Türü'].unique())
-    secilen_tur = st.sidebar.selectbox("Dosya / Medya Türü Seçin:", tur_listesi)
-
-    mevcut_gruplar = sorted(platform_df['Grup'].unique())
-    secilen_gruplar = st.sidebar.multiselect("Grafikte Gösterilecek Uygulamalar/Versiyonlar:", mevcut_gruplar, default=mevcut_gruplar)
-
-    plot_df = platform_df[
-        (platform_df['Şebeke'] == secilen_sebeke) &
-        (platform_df['İşlem Türü'] == secilen_islem) &
-        (platform_df['Medya Türü'] == secilen_tur) & 
-        (platform_df['Grup'].isin(secilen_gruplar))
-    ].copy()
-
-    if not plot_df.empty:
-        if secilen_tur in NUMBERED_MEDYA_TURLERI:
-            plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
-            x_ekseni = 'Grafik Etiketi'
-            kategori_sralama = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
-            x_eksen_basligi = 'Koşum Sırası'
-        else:
-            def _dosya_boyut_anahtari(etiket):
-                m = re.search(r'(\d+(?:\.\d+)?)', str(etiket))
-                return float(m.group(1)) if m else 0.0
-
-            plot_df['_sira_mb'] = plot_df['Grafik Etiketi'].apply(_dosya_boyut_anahtari)
-            plot_df = plot_df.sort_values(by=['_sira_mb', 'Boyut (Bytes)', 'Test Adı', 'Grup'])
-            x_ekseni = 'Grafik Etiketi'
-            kategori_sralama = list(dict.fromkeys(plot_df['Grafik Etiketi'].tolist()))
-            x_eksen_basligi = 'Dosya Boyutu (MB)'
-
-        # --- METRİKLER (BIP VE WHATSAPP AYRI AYRI) ---
-        st.subheader("⏱️ Ortalama Süreler Özeti")
-        col1, col2 = st.columns(2)
-
-        bip_df = plot_df[plot_df['Uygulama'] == 'BiP']
-        wa_df = plot_df[plot_df['Uygulama'] == 'WhatsApp']
-
-        if not bip_df.empty:
-            bip_ort = bip_df['Süre'].mean()
-            col1.metric(f"BiP ({aktif_bip_surumu}) Ortalama {secilen_islem} Süresi", f"{bip_ort:.2f} sn")
-        else:
-            col1.metric(f"BiP ({aktif_bip_surumu}) Ortalama {secilen_islem} Süresi", "-")
-
-        if not wa_df.empty:
-            wa_ort = wa_df['Süre'].mean()
-            col2.metric(f"WhatsApp Ortalama {secilen_islem} Süresi", f"{wa_ort:.2f} sn")
-        else:
-            col2.metric(f"WhatsApp Ortalama {secilen_islem} Süresi", "-")
-
-        st.markdown("---")
-
-        # PowerPoint sunumu renk paleti (#1587CB BiP Mavisi & #25D366 WhatsApp Yeşili / #10B5B1 Turkuaz)
-        color_map = {
-            'WhatsApp': '#25D366',
-            'BiP (V5.6.19)': '#1587CB',
-            'BiP (V5.6.41)': '#1587CB'
-        }
-
-        # --- GRAFİK (POWERPOINT GÖRSEL FORMATI) ---
-        islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
-        st.subheader(f"📊 {secilen_tur} — {secilen_sebeke} {secilen_islem} Performansı Kıyaslaması")
-
-        max_y = float(plot_df['Süre'].max()) if not plot_df['Süre'].empty else 1.0
-        ust_sinir = max(max_y * 1.22, 0.5)
-
-        fig = px.bar(
-            plot_df, x=x_ekseni, y='Süre', color='Grup',
-            barmode='group', text='Süre',
-            hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)'],
-            category_orders={
-                "Grup": mevcut_gruplar,
-                x_ekseni: kategori_sralama
-            },
-            color_discrete_map=color_map,
-            labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', x_ekseni: x_eksen_basligi}
-        )
-
-        fig.update_traces(
-            texttemplate='%{y:.2f}',
-            textposition='outside',
-            cliponaxis=False,
-            textfont=dict(size=12, color='#192F47', family='Arial, sans-serif'),
-            marker_line_color='#FFFFFF',
-            marker_line_width=1.0
-        )
-
-        fig.update_layout(
-            plot_bgcolor='#FFFFFF',
-            paper_bgcolor='#F9FCFE',
-            font=dict(family='Arial, sans-serif', size=13, color='#192F47'),
-            bargap=0.25,
-            bargroupgap=0.12,
-            height=480,
-            margin=dict(l=60, r=30, t=55, b=65),
-            legend=dict(
-                title_text='',
-                orientation='h',
-                yanchor='bottom',
-                y=1.02,
-                xanchor='right',
-                x=1.0,
-                bgcolor='rgba(255,255,255,0.85)',
-                bordercolor='#CBD5E1',
-                borderwidth=1,
-                font=dict(size=12, color='#192F47')
-            ),
-            xaxis=dict(
-                title=dict(text=x_eksen_basligi, font=dict(size=13, color='#192F47')),
-                showgrid=False,
-                showline=True,
-                linecolor='#192F47',
-                linewidth=1.5,
-                ticks='outside',
-                tickcolor='#192F47',
-                tickfont=dict(size=12, color='#192F47')
-            ),
-            yaxis=dict(
-                title=dict(text='Süre (sn)', font=dict(size=13, color='#192F47')),
-                range=[0, ust_sinir],
-                showgrid=True,
-                gridcolor='#CBD5E1',
-                gridwidth=1,
-                zeroline=True,
-                zerolinecolor='#192F47',
-                zerolinewidth=1.5,
-                showline=True,
-                linecolor='#192F47',
-                linewidth=1.5,
-                ticks='outside',
-                tickcolor='#192F47',
-                tickfont=dict(size=12, color='#192F47')
-            )
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("Süre: saniye (sn)  |  Dosya boyutları küçükten büyüğe sıralıdır  |  Tekrarlanan MB ölçümleri ayrı tutulmuştur")
-
-        st.info(performans_yorumu(plot_df, 'Süre', secilen_islem, secilen_sebeke))
-
-        # --- TABLOLAR ---
-        with st.expander("📌 Uygulama Bazlı Ortalama Süreler Tablosu"):
-            summary_df = plot_df.groupby(['Grup']).agg(
+    # --- TABLOLAR (8 SENARYONUN TOPLU ÖZETİ VE DETAY VERİLERİ) ---
+    if not tur_df.empty:
+        with st.expander(f"📌 {secilen_tur} — Tüm Senaryolar İçin Uygulama Bazlı Ortalama Süreler Tablosu"):
+            summary_df = tur_df.groupby(['Platform', 'Şebeke', 'İşlem Türü', 'Grup']).agg(
                 Ortalama_Süre_sn=('Süre', 'mean'),
                 Ortalama_Boyut_MB=('Boyut (MB)', 'mean'),
                 Koşum_Sayısı=('Süre', 'count')
@@ -584,14 +619,12 @@ if all_data:
             summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
             summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
 
-            summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
+            summary_df.columns = ['Platform', 'Şebeke', 'İşlem Türü', 'Uygulama/Grup', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-        with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            tablo_df = plot_df[['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)', 'Grup', 'İşlem Türü', 'Şebeke']].copy()
+        with st.expander(f"📊 {secilen_tur} — Tüm Veri Tablosu (Dosya Büyüklükleri ve Speedtest Dahil)"):
+            tablo_df = tur_df[['Platform', 'Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)']].copy()
             tablo_df.rename(columns={'Süre': 'Süre (sn)'}, inplace=True)
             st.dataframe(tablo_df, use_container_width=True, hide_index=True)
-    else:
-        st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:
     st.error(f"❌ '{script_dir}' klasöründe geçerli Excel (.xlsx) veya CSV dosyaları bulunamadı! Lütfen dosyaların script ile aynı dizinde olduğundan emin olun.")

@@ -255,6 +255,13 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
+        # iOS BiP Download verileri halihazırda saniye (sn) cinsindendir;
+        # diğer tüm veriler milisaniye (ms) cinsinden olduğu için saniyeye (sn) çevrilir.
+        is_already_seconds = (is_ios and not is_wa and not is_upload)
+        if not is_already_seconds:
+            df['Süre'] = df['Süre'] / 1000.0
+        df['Süre'] = df['Süre'].round(2)
+
         # --- BOYUT ATAMALARI ---
         if size_col and size_col in df.columns:
             df['Boyut (Bytes)'] = df[size_col]
@@ -340,29 +347,29 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
             ort_bip = bip_sub.mean()
             ort_wa = wa_sub.mean()
             
-            bip_sec = ort_bip / 1000
-            wa_sec = ort_wa / 1000
-            
             if ort_bip < ort_wa:
                 hiz_farki = ((ort_wa / ort_bip) - 1) * 100
-                saniye_farki = (ort_wa - ort_bip) / 1000
+                saniye_farki = ort_wa - ort_bip
                 yorumlar.append(
-                    f"- **{sebeke_turu} Şebekesinde:** **BiP** ({ort_bip:.1f} ms / {bip_sec:.2f} sn), "
-                    f"WhatsApp'a ({ort_wa:.1f} ms / {wa_sec:.2f} sn) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 🚀"
+                    f"- **{sebeke_turu} Şebekesinde:** **BiP** (`{ort_bip:.2f} sn`), "
+                    f"WhatsApp'a (`{ort_wa:.2f} sn`) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 🚀"
                 )
             elif ort_wa < ort_bip:
                 hiz_farki = ((ort_bip / ort_wa) - 1) * 100
-                saniye_farki = (ort_bip - ort_wa) / 1000
+                saniye_farki = ort_bip - ort_wa
                 yorumlar.append(
-                    f"- **{sebeke_turu} Şebekesinde:** **WhatsApp** ({ort_wa:.1f} ms / {wa_sec:.2f} sn), "
-                    f"BiP'e ({ort_bip:.1f} ms / {bip_sec:.2f} sn) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 📉"
+                    f"- **{sebeke_turu} Şebekesinde:** **WhatsApp** (`{ort_wa:.2f} sn`), "
+                    f"BiP'e (`{ort_bip:.2f} sn`) göre **{saniye_farki:.2f} saniye daha erken tamamlanarak %{hiz_farki:.1f} daha hızlıdır.** 📉"
                 )
             else:
-                yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** BiP ve WhatsApp eşit süre kaydetmiştir ({bip_sec:.2f} sn). ⚖️")
+                yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** BiP ve WhatsApp eşit süre kaydetmiştir (`{ort_bip:.2f} sn`). ⚖️")
+    elif bip_groups:
+        v_bip = bip_groups[-1]
+        ort_bip = df[df['Grup'] == v_bip][metrik_kolonu].mean()
+        yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** **BiP ({v_bip})** ortalama {islem_str} süresi **`{ort_bip:.2f} sn`** olarak gerçekleşmiştir.")
     elif wa_exists:
         ort_wa = df[df['Grup'] == "WhatsApp"][metrik_kolonu].mean()
-        wa_sec = ort_wa / 1000
-        yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** **WhatsApp** ortalama {islem_str} süresi **{ort_wa:.1f} ms ({wa_sec:.2f} sn)** olarak gerçekleşmiştir.")
+        yorumlar.append(f"- **{sebeke_turu} Şebekesinde:** **WhatsApp** ortalama {islem_str} süresi **`{ort_wa:.2f} sn`** olarak gerçekleşmiştir.")
 
     return "\n\n".join(yorumlar) if yorumlar else "Kıyaslama için yeterli veri bulunmuyor."
 
@@ -445,71 +452,145 @@ if all_data:
             plot_df = plot_df.sort_values(by=['Koşum Sırası', 'Grup'])
             x_ekseni = 'Grafik Etiketi'
             kategori_sralama = [f"{i}. Koşum" for i in sorted(plot_df['Koşum Sırası'].unique())]
+            x_eksen_basligi = 'Koşum Sırası'
         else:
-            plot_df = plot_df.sort_values(by=['Test Adı', 'Grup'])
-            x_ekseni = 'Grafik Etiketi'
-            kategori_sralama = list(plot_df['Grafik Etiketi'].unique())
+            def _dosya_boyut_anahtari(etiket):
+                m = re.search(r'(\d+(?:\.\d+)?)', str(etiket))
+                return float(m.group(1)) if m else 0.0
 
-        # --- METRİKLER ---
+            plot_df['_sira_mb'] = plot_df['Grafik Etiketi'].apply(_dosya_boyut_anahtari)
+            plot_df = plot_df.sort_values(by=['_sira_mb', 'Boyut (Bytes)', 'Test Adı', 'Grup'])
+            x_ekseni = 'Grafik Etiketi'
+            kategori_sralama = list(dict.fromkeys(plot_df['Grafik Etiketi'].tolist()))
+            x_eksen_basligi = 'Dosya Boyutu (MB)'
+
+        # --- METRİKLER (BIP VE WHATSAPP AYRI AYRI) ---
         st.subheader("⏱️ Ortalama Süreler Özeti")
         col1, col2 = st.columns(2)
 
-        genel_ort = plot_df['Süre'].mean()
-        col1.metric(f"Genel Ortalama {secilen_islem} Süresi", f"{genel_ort:.1f} ms", f"{genel_ort/1000:.2f} sn")
-
         bip_df = plot_df[plot_df['Uygulama'] == 'BiP']
+        wa_df = plot_df[plot_df['Uygulama'] == 'WhatsApp']
+
         if not bip_df.empty:
             bip_ort = bip_df['Süre'].mean()
-            col2.metric(f"BiP ({aktif_bip_surumu}) Ortalama Süre", f"{bip_ort:.1f} ms", f"{bip_ort/1000:.2f} sn")
+            col1.metric(f"BiP ({aktif_bip_surumu}) Ortalama {secilen_islem} Süresi", f"{bip_ort:.2f} sn")
+        else:
+            col1.metric(f"BiP ({aktif_bip_surumu}) Ortalama {secilen_islem} Süresi", "-")
+
+        if not wa_df.empty:
+            wa_ort = wa_df['Süre'].mean()
+            col2.metric(f"WhatsApp Ortalama {secilen_islem} Süresi", f"{wa_ort:.2f} sn")
+        else:
+            col2.metric(f"WhatsApp Ortalama {secilen_islem} Süresi", "-")
 
         st.markdown("---")
 
+        # PowerPoint sunumu renk paleti (#1587CB BiP Mavisi & #25D366 WhatsApp Yeşili / #10B5B1 Turkuaz)
         color_map = {
             'WhatsApp': '#25D366',
-            'BiP (V5.6.19)': '#3498db',
-            'BiP (V5.6.41)': '#3498db'
+            'BiP (V5.6.19)': '#1587CB',
+            'BiP (V5.6.41)': '#1587CB'
         }
 
-        # --- GRAFİK ---
+        # --- GRAFİK (POWERPOINT GÖRSEL FORMATI) ---
         islem_baslik = "İndirme (Download)" if secilen_islem == "Download" else "Yükleme (Upload)"
-        st.subheader(f"📊 {secilen_tur} Dosyaları ({secilen_sebeke}) - {islem_baslik} Performansı Kıyaslaması")
+        st.subheader(f"📊 {secilen_tur} — {secilen_sebeke} {secilen_islem} Performansı Kıyaslaması")
+
+        max_y = float(plot_df['Süre'].max()) if not plot_df['Süre'].empty else 1.0
+        ust_sinir = max(max_y * 1.22, 0.5)
 
         fig = px.bar(
             plot_df, x=x_ekseni, y='Süre', color='Grup',
-            barmode='group', text_auto=True,
+            barmode='group', text='Süre',
             hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)'],
             category_orders={
                 "Grup": mevcut_gruplar,
                 x_ekseni: kategori_sralama
             },
             color_discrete_map=color_map,
-            labels={'Süre': 'Süre (ms)', 'Grup': 'Uygulama / Sürüm', x_ekseni: 'Test Dosyası / Koşum'}
+            labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', x_ekseni: x_eksen_basligi}
         )
+
+        fig.update_traces(
+            texttemplate='%{y:.2f}',
+            textposition='outside',
+            cliponaxis=False,
+            textfont=dict(size=12, color='#192F47', family='Arial, sans-serif'),
+            marker_line_color='#FFFFFF',
+            marker_line_width=1.0
+        )
+
+        fig.update_layout(
+            plot_bgcolor='#FFFFFF',
+            paper_bgcolor='#F9FCFE',
+            font=dict(family='Arial, sans-serif', size=13, color='#192F47'),
+            bargap=0.25,
+            bargroupgap=0.12,
+            height=480,
+            margin=dict(l=60, r=30, t=55, b=65),
+            legend=dict(
+                title_text='',
+                orientation='h',
+                yanchor='bottom',
+                y=1.02,
+                xanchor='right',
+                x=1.0,
+                bgcolor='rgba(255,255,255,0.85)',
+                bordercolor='#CBD5E1',
+                borderwidth=1,
+                font=dict(size=12, color='#192F47')
+            ),
+            xaxis=dict(
+                title=dict(text=x_eksen_basligi, font=dict(size=13, color='#192F47')),
+                showgrid=False,
+                showline=True,
+                linecolor='#192F47',
+                linewidth=1.5,
+                ticks='outside',
+                tickcolor='#192F47',
+                tickfont=dict(size=12, color='#192F47')
+            ),
+            yaxis=dict(
+                title=dict(text='Süre (sn)', font=dict(size=13, color='#192F47')),
+                range=[0, ust_sinir],
+                showgrid=True,
+                gridcolor='#CBD5E1',
+                gridwidth=1,
+                zeroline=True,
+                zerolinecolor='#192F47',
+                zerolinewidth=1.5,
+                showline=True,
+                linecolor='#192F47',
+                linewidth=1.5,
+                ticks='outside',
+                tickcolor='#192F47',
+                tickfont=dict(size=12, color='#192F47')
+            )
+        )
+
         st.plotly_chart(fig, use_container_width=True)
+        st.caption("Süre: saniye (sn)  |  Dosya boyutları küçükten büyüğe sıralıdır  |  Tekrarlanan MB ölçümleri ayrı tutulmuştur")
 
         st.info(performans_yorumu(plot_df, 'Süre', secilen_islem, secilen_sebeke))
 
         # --- TABLOLAR ---
         with st.expander("📌 Uygulama Bazlı Ortalama Süreler Tablosu"):
             summary_df = plot_df.groupby(['Grup']).agg(
-                Ortalama_Süre_ms=('Süre', 'mean'),
-                Ortalama_Süre_sn=('Süre', lambda x: x.mean() / 1000),
+                Ortalama_Süre_sn=('Süre', 'mean'),
                 Ortalama_Boyut_MB=('Boyut (MB)', 'mean'),
                 Koşum_Sayısı=('Süre', 'count')
             ).reset_index()
 
-            summary_df['Ortalama_Süre_ms'] = summary_df['Ortalama_Süre_ms'].round(1)
             summary_df['Ortalama_Süre_sn'] = summary_df['Ortalama_Süre_sn'].round(2)
             summary_df['Ortalama_Boyut_MB'] = summary_df['Ortalama_Boyut_MB'].round(4)
 
-            summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (ms)', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
+            summary_df.columns = ['Uygulama/Grup', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
         with st.expander("📊 Filtrelenmiş Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
-            gosterilecek_sutunlar = ['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Grup', 'İşlem Türü', 'Şebeke']
-            mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in plot_df.columns]
-            
-            st.dataframe(plot_df[mevcut_sutunlar], use_container_width=True, hide_index=True)
+            tablo_df = plot_df[['Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)', 'Grup', 'İşlem Türü', 'Şebeke']].copy()
+            tablo_df.rename(columns={'Süre': 'Süre (sn)'}, inplace=True)
+            st.dataframe(tablo_df, use_container_width=True, hide_index=True)
     else:
         st.warning("Seçilen kriterlere uygun veri bulunamadı. Lütfen sol menüden farklı kombinasyonlar deneyin.")
 else:

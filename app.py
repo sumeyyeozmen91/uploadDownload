@@ -447,7 +447,23 @@ if all_data:
         m = re.search(r'(\d+(?:\.\d+)?)', str(etiket))
         return float(m.group(1)) if m else 0.0
 
+    def veri_var_mi(platform_adi, sebeke_adi, islem_adi):
+        return not tur_df[
+            (tur_df['Platform'] == platform_adi) &
+            (tur_df['Şebeke'] == sebeke_adi) &
+            (tur_df['İşlem Türü'] == islem_adi)
+        ].empty
+
     def tek_grafik_ciz(container, platform_adi, sebeke_adi, islem_adi, baslik_etiketi, grafik_key):
+        sub_df = tur_df[
+            (tur_df['Platform'] == platform_adi) &
+            (tur_df['Şebeke'] == sebeke_adi) &
+            (tur_df['İşlem Türü'] == islem_adi)
+        ].copy()
+
+        if sub_df.empty:
+            return
+
         with container:
             bip_surum = "V5.6.41" if platform_adi == "iOS" else "V5.6.19"
             baslik_renk = "#10B5B1" if platform_adi == "iOS" else "#1587CB"
@@ -456,12 +472,6 @@ if all_data:
                 f"{baslik_etiketi}</h4>",
                 unsafe_allow_html=True
             )
-
-            sub_df = tur_df[
-                (tur_df['Platform'] == platform_adi) &
-                (tur_df['Şebeke'] == sebeke_adi) &
-                (tur_df['İşlem Türü'] == islem_adi)
-            ].copy()
 
             # --- UYGULAMA BAZLI AYRI ORTALAMA SÜRELER VE SPEEDTEST (3 SÜTUN) ---
             mcol1, mcol2, mcol3 = st.columns(3)
@@ -484,138 +494,132 @@ if all_data:
             mcol2.metric(f"WhatsApp Ortalama {islem_adi}", wa_ort_str)
             mcol3.metric(f"Speedtest (BiP / WA)", f"{bip_speed_str} / {wa_speed_str} Mbps")
 
-            if not sub_df.empty:
-                if secilen_tur in NUMBERED_MEDYA_TURLERI:
-                    sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])
-                    x_ekseni = 'Grafik Etiketi'
-                    kategori_sralama = [f"{i}. Koşum" for i in sorted(sub_df['Koşum Sırası'].unique())]
-                    x_eksen_basligi = 'Koşum Sırası'
-                else:
-                    sub_df['_sira_mb'] = sub_df['Grafik Etiketi'].apply(_dosya_boyut_anahtari)
-                    sub_df = sub_df.sort_values(by=['_sira_mb', 'Boyut (Bytes)', 'Test Adı', 'Grup'])
-                    x_ekseni = 'Grafik Etiketi'
-                    kategori_sralama = list(dict.fromkeys(sub_df['Grafik Etiketi'].tolist()))
-                    x_eksen_basligi = 'Dosya Boyutu (MB)'
-
-                mevcut_gruplar = sorted(sub_df['Grup'].unique())
-                max_y = float(sub_df['Süre'].max()) if not sub_df['Süre'].empty else 1.0
-                ust_sinir = max(max_y * 1.24, 0.5)
-
-                fig = px.bar(
-                    sub_df, x=x_ekseni, y='Süre', color='Grup',
-                    barmode='group', text='Süre',
-                    hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)'],
-                    category_orders={
-                        "Grup": mevcut_gruplar,
-                        x_ekseni: kategori_sralama
-                    },
-                    color_discrete_map=color_map,
-                    labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', x_ekseni: x_eksen_basligi}
-                )
-
-                fig.update_traces(
-                    texttemplate='%{y:.2f}',
-                    textposition='outside',
-                    cliponaxis=False,
-                    textfont=dict(size=11, color='#192F47', family='Arial, sans-serif'),
-                    marker_line_color='#FFFFFF',
-                    marker_line_width=1.0
-                )
-
-                fig.update_layout(
-                    plot_bgcolor='#FFFFFF',
-                    paper_bgcolor='#F9FCFE',
-                    font=dict(family='Arial, sans-serif', size=12, color='#192F47'),
-                    bargap=0.25,
-                    bargroupgap=0.12,
-                    height=360,
-                    margin=dict(l=50, r=20, t=40, b=50),
-                    legend=dict(
-                        title_text='',
-                        orientation='h',
-                        yanchor='bottom',
-                        y=1.02,
-                        xanchor='right',
-                        x=1.0,
-                        bgcolor='rgba(255,255,255,0.85)',
-                        bordercolor='#CBD5E1',
-                        borderwidth=1,
-                        font=dict(size=11, color='#192F47')
-                    ),
-                    xaxis=dict(
-                        title=dict(text=x_eksen_basligi, font=dict(size=12, color='#192F47')),
-                        showgrid=False,
-                        showline=True,
-                        linecolor='#192F47',
-                        linewidth=1.5,
-                        ticks='outside',
-                        tickcolor='#192F47',
-                        tickfont=dict(size=11, color='#192F47')
-                    ),
-                    yaxis=dict(
-                        title=dict(text='Süre (sn)', font=dict(size=12, color='#192F47')),
-                        range=[0, ust_sinir],
-                        showgrid=True,
-                        gridcolor='#CBD5E1',
-                        gridwidth=1,
-                        zeroline=True,
-                        zerolinecolor='#192F47',
-                        zerolinewidth=1.5,
-                        showline=True,
-                        linecolor='#192F47',
-                        linewidth=1.5,
-                        ticks='outside',
-                        tickcolor='#192F47',
-                        tickfont=dict(size=11, color='#192F47')
-                    )
-                )
-
-                st.plotly_chart(fig, use_container_width=True, key=grafik_key)
+            if secilen_tur in NUMBERED_MEDYA_TURLERI:
+                sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])
+                x_ekseni = 'Grafik Etiketi'
+                kategori_sralama = [f"{i}. Koşum" for i in sorted(sub_df['Koşum Sırası'].unique())]
+                x_eksen_basligi = 'Koşum Sırası'
             else:
-                bos_fig = px.bar(title="")
-                bos_fig.update_layout(
-                    plot_bgcolor='#FFFFFF',
-                    paper_bgcolor='#F9FCFE',
-                    height=360,
-                    margin=dict(l=50, r=20, t=40, b=50),
-                    xaxis=dict(visible=False),
-                    yaxis=dict(visible=False),
-                    annotations=[dict(
-                        text=f"{baslik_etiketi}<br>için henüz veri bulunmamaktadır",
-                        xref="paper", yref="paper",
-                        x=0.5, y=0.5, showarrow=False,
-                        font=dict(size=13, color="#64748B", family="Arial, sans-serif")
-                    )]
+                sub_df['_sira_mb'] = sub_df['Grafik Etiketi'].apply(_dosya_boyut_anahtari)
+                sub_df = sub_df.sort_values(by=['_sira_mb', 'Boyut (Bytes)', 'Test Adı', 'Grup'])
+                x_ekseni = 'Grafik Etiketi'
+                kategori_sralama = list(dict.fromkeys(sub_df['Grafik Etiketi'].tolist()))
+                x_eksen_basligi = 'Dosya Boyutu (MB)'
+
+            mevcut_gruplar = sorted(sub_df['Grup'].unique())
+            max_y = float(sub_df['Süre'].max()) if not sub_df['Süre'].empty else 1.0
+            ust_sinir = max(max_y * 1.24, 0.5)
+
+            fig = px.bar(
+                sub_df, x=x_ekseni, y='Süre', color='Grup',
+                barmode='group', text='Süre',
+                hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)'],
+                category_orders={
+                    "Grup": mevcut_gruplar,
+                    x_ekseni: kategori_sralama
+                },
+                color_discrete_map=color_map,
+                labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', x_ekseni: x_eksen_basligi}
+            )
+
+            fig.update_traces(
+                texttemplate='%{y:.2f}',
+                textposition='outside',
+                cliponaxis=False,
+                textfont=dict(size=11, color='#192F47', family='Arial, sans-serif'),
+                marker_line_color='#FFFFFF',
+                marker_line_width=1.0
+            )
+
+            fig.update_layout(
+                plot_bgcolor='#FFFFFF',
+                paper_bgcolor='#F9FCFE',
+                font=dict(family='Arial, sans-serif', size=12, color='#192F47'),
+                bargap=0.25,
+                bargroupgap=0.12,
+                height=360,
+                margin=dict(l=50, r=20, t=40, b=50),
+                legend=dict(
+                    title_text='',
+                    orientation='h',
+                    yanchor='bottom',
+                    y=1.02,
+                    xanchor='right',
+                    x=1.0,
+                    bgcolor='rgba(255,255,255,0.85)',
+                    bordercolor='#CBD5E1',
+                    borderwidth=1,
+                    font=dict(size=11, color='#192F47')
+                ),
+                xaxis=dict(
+                    title=dict(text=x_eksen_basligi, font=dict(size=12, color='#192F47')),
+                    showgrid=False,
+                    showline=True,
+                    linecolor='#192F47',
+                    linewidth=1.5,
+                    ticks='outside',
+                    tickcolor='#192F47',
+                    tickfont=dict(size=11, color='#192F47')
+                ),
+                yaxis=dict(
+                    title=dict(text='Süre (sn)', font=dict(size=12, color='#192F47')),
+                    range=[0, ust_sinir],
+                    showgrid=True,
+                    gridcolor='#CBD5E1',
+                    gridwidth=1,
+                    zeroline=True,
+                    zerolinecolor='#192F47',
+                    zerolinewidth=1.5,
+                    showline=True,
+                    linecolor='#192F47',
+                    linewidth=1.5,
+                    ticks='outside',
+                    tickcolor='#192F47',
+                    tickfont=dict(size=11, color='#192F47')
                 )
-                st.plotly_chart(bos_fig, use_container_width=True, key=grafik_key)
+            )
+
+            st.plotly_chart(fig, use_container_width=True, key=grafik_key)
 
     # =========================================================================
-    # BÖLÜM 1: WI-FI PERFORMANSI (4 GRAFİK: ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D)
+    # BÖLÜM 1: WI-FI PERFORMANSI (ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D)
     # =========================================================================
-    st.subheader(f"📶 BiP & WhatsApp Wi-Fi | {secilen_tur} Upload / Download (4 Grafik)")
-    wifi_row1_col1, wifi_row1_col2 = st.columns(2)
-    tek_grafik_ciz(wifi_row1_col1, "Android", "Wifi", "Upload", "Android · Wi-Fi Upload", "chart_and_wifi_up")
-    tek_grafik_ciz(wifi_row1_col2, "Android", "Wifi", "Download", "Android · Wi-Fi Download", "chart_and_wifi_down")
+    and_wifi_var = veri_var_mi("Android", "Wifi", "Upload") or veri_var_mi("Android", "Wifi", "Download")
+    ios_wifi_var = veri_var_mi("iOS", "Wifi", "Upload") or veri_var_mi("iOS", "Wifi", "Download")
 
-    wifi_row2_col1, wifi_row2_col2 = st.columns(2)
-    tek_grafik_ciz(wifi_row2_col1, "iOS", "Wifi", "Upload", "iOS · Wi-Fi Upload", "chart_ios_wifi_up")
-    tek_grafik_ciz(wifi_row2_col2, "iOS", "Wifi", "Download", "iOS · Wi-Fi Download", "chart_ios_wifi_down")
+    if and_wifi_var or ios_wifi_var:
+        st.subheader(f"📶 BiP & WhatsApp Wi-Fi | {secilen_tur} Upload / Download")
+        if and_wifi_var:
+            wifi_row1_col1, wifi_row1_col2 = st.columns(2)
+            tek_grafik_ciz(wifi_row1_col1, "Android", "Wifi", "Upload", "Android · Wi-Fi Upload", "chart_and_wifi_up")
+            tek_grafik_ciz(wifi_row1_col2, "Android", "Wifi", "Download", "Android · Wi-Fi Download", "chart_and_wifi_down")
 
-    st.markdown("---")
+        if ios_wifi_var:
+            wifi_row2_col1, wifi_row2_col2 = st.columns(2)
+            tek_grafik_ciz(wifi_row2_col1, "iOS", "Wifi", "Upload", "iOS · Wi-Fi Upload", "chart_ios_wifi_up")
+            tek_grafik_ciz(wifi_row2_col2, "iOS", "Wifi", "Download", "iOS · Wi-Fi Download", "chart_ios_wifi_down")
+
+        st.markdown("---")
 
     # =========================================================================
-    # BÖLÜM 2: LTE / 5G PERFORMANSI (4 GRAFİK: ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D)
+    # BÖLÜM 2: LTE / 5G PERFORMANSI (ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D)
     # =========================================================================
-    st.subheader(f"📡 BiP & WhatsApp LTE / 5G | {secilen_tur} Upload / Download (4 Grafik)")
-    lte_row1_col1, lte_row1_col2 = st.columns(2)
-    tek_grafik_ciz(lte_row1_col1, "Android", "4.5G (LTE)", "Upload", "Android · 4.5G (LTE) Upload", "chart_and_lte_up")
-    tek_grafik_ciz(lte_row1_col2, "Android", "4.5G (LTE)", "Download", "Android · 4.5G (LTE) Download", "chart_and_lte_down")
+    and_lte_var = veri_var_mi("Android", "4.5G (LTE)", "Upload") or veri_var_mi("Android", "4.5G (LTE)", "Download")
+    ios_lte_var = veri_var_mi("iOS", "5G", "Upload") or veri_var_mi("iOS", "5G", "Download")
 
-    lte_row2_col1, lte_row2_col2 = st.columns(2)
-    tek_grafik_ciz(lte_row2_col1, "iOS", "5G", "Upload", "iOS · 5G (LTE) Upload", "chart_ios_lte_up")
-    tek_grafik_ciz(lte_row2_col2, "iOS", "5G", "Download", "iOS · 5G (LTE) Download", "chart_ios_lte_down")
+    if and_lte_var or ios_lte_var:
+        st.subheader(f"📡 BiP & WhatsApp LTE / 5G | {secilen_tur} Upload / Download")
+        if and_lte_var:
+            lte_row1_col1, lte_row1_col2 = st.columns(2)
+            tek_grafik_ciz(lte_row1_col1, "Android", "4.5G (LTE)", "Upload", "Android · 4.5G (LTE) Upload", "chart_and_lte_up")
+            tek_grafik_ciz(lte_row1_col2, "Android", "4.5G (LTE)", "Download", "Android · 4.5G (LTE) Download", "chart_and_lte_down")
 
-    st.markdown("---")
+        if ios_lte_var:
+            lte_row2_col1, lte_row2_col2 = st.columns(2)
+            tek_grafik_ciz(lte_row2_col1, "iOS", "5G", "Upload", "iOS · 5G (LTE) Upload", "chart_ios_lte_up")
+            tek_grafik_ciz(lte_row2_col2, "iOS", "5G", "Download", "iOS · 5G (LTE) Download", "chart_ios_lte_down")
+
+        st.markdown("---")
 
     # --- TABLOLAR (8 SENARYONUN TOPLU ÖZETİ VE DETAY VERİLERİ) ---
     if not tur_df.empty:

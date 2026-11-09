@@ -463,16 +463,26 @@ if all_data:
                 (tur_df['İşlem Türü'] == islem_adi)
             ].copy()
 
-            # --- UYGULAMA BAZLI AYRI ORTALAMA SÜRELER (BIP VE WHATSAPP AYRI) ---
-            mcol1, mcol2 = st.columns(2)
+            # --- UYGULAMA BAZLI AYRI ORTALAMA SÜRELER VE SPEEDTEST (3 SÜTUN) ---
+            mcol1, mcol2, mcol3 = st.columns(3)
             bip_sub = sub_df[sub_df['Uygulama'] == 'BiP']
             wa_sub = sub_df[sub_df['Uygulama'] == 'WhatsApp']
 
             bip_ort_str = f"{bip_sub['Süre'].mean():.2f} sn" if not bip_sub.empty else "-"
             wa_ort_str = f"{wa_sub['Süre'].mean():.2f} sn" if not wa_sub.empty else "-"
 
+            speed_key = "upload_mbps" if islem_adi == "Upload" else "download_mbps"
+            bip_meta = SPEEDTEST_META.get((platform_adi, "BiP", secilen_tur, sebeke_adi), {})
+            wa_meta = SPEEDTEST_META.get((platform_adi, "WhatsApp", secilen_tur, sebeke_adi), {})
+            bip_speed = bip_meta.get(speed_key)
+            wa_speed = wa_meta.get(speed_key)
+
+            bip_speed_str = f"{bip_speed:g}" if bip_speed is not None else "-"
+            wa_speed_str = f"{wa_speed:g}" if wa_speed is not None else "-"
+
             mcol1.metric(f"BiP ({bip_surum}) Ortalama {islem_adi}", bip_ort_str)
             mcol2.metric(f"WhatsApp Ortalama {islem_adi}", wa_ort_str)
+            mcol3.metric(f"Speedtest (BiP / WA)", f"{bip_speed_str} / {wa_speed_str} Mbps")
 
             if not sub_df.empty:
                 if secilen_tur in NUMBERED_MEDYA_TURLERI:
@@ -580,29 +590,29 @@ if all_data:
                 st.plotly_chart(bos_fig, use_container_width=True, key=grafik_key)
 
     # =========================================================================
-    # BÖLÜM 1: WI-FI PERFORMANSI (4 GRAFİK: ANDROID U/D & iOS U/D)
+    # BÖLÜM 1: WI-FI PERFORMANSI (4 GRAFİK: ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D)
     # =========================================================================
     st.subheader(f"📶 BiP & WhatsApp Wi-Fi | {secilen_tur} Upload / Download (4 Grafik)")
     wifi_row1_col1, wifi_row1_col2 = st.columns(2)
     tek_grafik_ciz(wifi_row1_col1, "Android", "Wifi", "Upload", "Android · Wi-Fi Upload", "chart_and_wifi_up")
-    tek_grafik_ciz(wifi_row1_col2, "iOS", "Wifi", "Upload", "iOS · Wi-Fi Upload", "chart_ios_wifi_up")
+    tek_grafik_ciz(wifi_row1_col2, "Android", "Wifi", "Download", "Android · Wi-Fi Download", "chart_and_wifi_down")
 
     wifi_row2_col1, wifi_row2_col2 = st.columns(2)
-    tek_grafik_ciz(wifi_row2_col1, "Android", "Wifi", "Download", "Android · Wi-Fi Download", "chart_and_wifi_down")
+    tek_grafik_ciz(wifi_row2_col1, "iOS", "Wifi", "Upload", "iOS · Wi-Fi Upload", "chart_ios_wifi_up")
     tek_grafik_ciz(wifi_row2_col2, "iOS", "Wifi", "Download", "iOS · Wi-Fi Download", "chart_ios_wifi_down")
 
     st.markdown("---")
 
     # =========================================================================
-    # BÖLÜM 2: LTE / 5G PERFORMANSI (4 GRAFİK: ANDROID U/D & iOS U/D)
+    # BÖLÜM 2: LTE / 5G PERFORMANSI (4 GRAFİK: ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D)
     # =========================================================================
     st.subheader(f"📡 BiP & WhatsApp LTE / 5G | {secilen_tur} Upload / Download (4 Grafik)")
     lte_row1_col1, lte_row1_col2 = st.columns(2)
     tek_grafik_ciz(lte_row1_col1, "Android", "4.5G (LTE)", "Upload", "Android · 4.5G (LTE) Upload", "chart_and_lte_up")
-    tek_grafik_ciz(lte_row1_col2, "iOS", "5G", "Upload", "iOS · 5G (LTE) Upload", "chart_ios_lte_up")
+    tek_grafik_ciz(lte_row1_col2, "Android", "4.5G (LTE)", "Download", "Android · 4.5G (LTE) Download", "chart_and_lte_down")
 
     lte_row2_col1, lte_row2_col2 = st.columns(2)
-    tek_grafik_ciz(lte_row2_col1, "Android", "4.5G (LTE)", "Download", "Android · 4.5G (LTE) Download", "chart_and_lte_down")
+    tek_grafik_ciz(lte_row2_col1, "iOS", "5G", "Upload", "iOS · 5G (LTE) Upload", "chart_ios_lte_up")
     tek_grafik_ciz(lte_row2_col2, "iOS", "5G", "Download", "iOS · 5G (LTE) Download", "chart_ios_lte_down")
 
     st.markdown("---")

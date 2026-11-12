@@ -39,133 +39,6 @@ MEDYA_TURU_ISIMLERI = {
 NUMBERED_PREFIXES = {"sd_photo", "sd_2dkvideo", "hd_photo", "hd_2dkvideo"}
 NUMBERED_MEDYA_TURLERI = {"SD Fotoğraf", "SD 2dk Video", "HD Fotoğraf", "HD 2dk Video"}
 
-# --- SPEEDTEST REFERANS TABLOSU (ANDROID & iOS) ---
-# Yükleme yapan cihazın (Android: J2D, iOS: YRC) Upload hızı ve İndirme yapan cihazın (Android: YHV, iOS: HXC) Download hızı baz alınır.
-SPEEDTEST_META = {
-    # Android - BiP - 4.5G (LTE) (Photo & Video: Güncel Tablo | Diğerleri: ag_hiz_test_sonuclari.xlsx)
-    ("Android", "BiP", "SD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 78.6, "download_mbps": 91.4},
-    ("Android", "BiP", "SD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 76.2, "download_mbps": 104.0},
-    ("Android", "BiP", "HD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 84.6, "download_mbps": 103.0},
-    ("Android", "BiP", "HD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 77.7, "download_mbps": 103.0},
-    ("Android", "BiP", "MP4 Video", "4.5G (LTE)"): {"upload_mbps": 70.3, "download_mbps": 104.6},
-    ("Android", "BiP", "PDF Belge", "4.5G (LTE)"): {"upload_mbps": 69.1, "download_mbps": 104.0},
-    ("Android", "BiP", "RAR Arşiv", "4.5G (LTE)"): {"upload_mbps": 64.0, "download_mbps": 104.0},
-    ("Android", "BiP", "TXT Metin", "4.5G (LTE)"): {"upload_mbps": 57.5, "download_mbps": 100.0},
-    ("Android", "BiP", "XLSX Tablo", "4.5G (LTE)"): {"upload_mbps": 47.8, "download_mbps": 75.3},
-    ("Android", "BiP", "ZIP Arşiv", "4.5G (LTE)"): {"upload_mbps": 64.8, "download_mbps": 45.3},
-
-    # Android - WhatsApp - 4.5G (LTE) (Photo & Video: Güncel Tablo | Diğerleri: ag_hiz_test_sonuclari.xlsx)
-    ("Android", "WhatsApp", "SD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 53.4, "download_mbps": 85.5},
-    ("Android", "WhatsApp", "SD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 76.5, "download_mbps": 105.0},
-    ("Android", "WhatsApp", "HD Fotoğraf", "4.5G (LTE)"): {"upload_mbps": 77.9, "download_mbps": 104.0},
-    ("Android", "WhatsApp", "HD 2dk Video", "4.5G (LTE)"): {"upload_mbps": 82.3, "download_mbps": 103.0},
-    ("Android", "WhatsApp", "MP4 Video", "4.5G (LTE)"): {"upload_mbps": 64.5, "download_mbps": 89.8},
-    ("Android", "WhatsApp", "PDF Belge", "4.5G (LTE)"): {"upload_mbps": 84.5, "download_mbps": 103.0},
-    ("Android", "WhatsApp", "RAR Arşiv", "4.5G (LTE)"): {"upload_mbps": 69.1, "download_mbps": 94.7},
-    ("Android", "WhatsApp", "TXT Metin", "4.5G (LTE)"): {"upload_mbps": 85.6, "download_mbps": 103.0},
-    ("Android", "WhatsApp", "XLSX Tablo", "4.5G (LTE)"): {"upload_mbps": 76.7, "download_mbps": 102.0},
-    ("Android", "WhatsApp", "ZIP Arşiv", "4.5G (LTE)"): {"upload_mbps": 82.4, "download_mbps": 104.0},
-
-    # Android - BiP - Wifi (Photo & Video: Güncel Tablo | Diğerleri: ag_hiz_test_sonuclari.xlsx)
-    ("Android", "BiP", "SD Fotoğraf", "Wifi"): {"upload_mbps": 48.3, "download_mbps": 45.6},
-    ("Android", "BiP", "SD 2dk Video", "Wifi"): {"upload_mbps": 26.6, "download_mbps": 85.7},
-    ("Android", "BiP", "HD Fotoğraf", "Wifi"): {"upload_mbps": 28.6, "download_mbps": 85.4},
-    ("Android", "BiP", "HD 2dk Video", "Wifi"): {"upload_mbps": 49.7, "download_mbps": 70.7},
-    ("Android", "BiP", "MP4 Video", "Wifi"): {"upload_mbps": 17.2, "download_mbps": 93.2},
-    ("Android", "BiP", "PDF Belge", "Wifi"): {"upload_mbps": 17.1, "download_mbps": 93.1},
-    ("Android", "BiP", "RAR Arşiv", "Wifi"): {"upload_mbps": 90.2, "download_mbps": 93.9},
-    ("Android", "BiP", "TXT Metin", "Wifi"): {"upload_mbps": 28.7, "download_mbps": 55.4},
-    ("Android", "BiP", "XLSX Tablo", "Wifi"): {"upload_mbps": 54.7, "download_mbps": 65.6},
-    ("Android", "BiP", "ZIP Arşiv", "Wifi"): {"upload_mbps": 28.9, "download_mbps": 66.0},
-
-    # Android - WhatsApp - Wifi (Photo & Video: Güncel Tablo | Diğerleri: ag_hiz_test_sonuclari.xlsx)
-    ("Android", "WhatsApp", "SD Fotoğraf", "Wifi"): {"upload_mbps": 30.1, "download_mbps": 80.7},
-    ("Android", "WhatsApp", "SD 2dk Video", "Wifi"): {"upload_mbps": 40.7, "download_mbps": 79.3},
-    ("Android", "WhatsApp", "HD Fotoğraf", "Wifi"): {"upload_mbps": 21.3, "download_mbps": 92.9},
-    ("Android", "WhatsApp", "HD 2dk Video", "Wifi"): {"upload_mbps": 45.4, "download_mbps": 45.4},
-    ("Android", "WhatsApp", "MP4 Video", "Wifi"): {"upload_mbps": 26.5, "download_mbps": 59.4},
-    ("Android", "WhatsApp", "PDF Belge", "Wifi"): {"upload_mbps": 36.5, "download_mbps": 40.9},
-    ("Android", "WhatsApp", "RAR Arşiv", "Wifi"): {"upload_mbps": 56.3, "download_mbps": 85.5},
-    ("Android", "WhatsApp", "TXT Metin", "Wifi"): {"upload_mbps": 54.3, "download_mbps": 84.6},
-    ("Android", "WhatsApp", "XLSX Tablo", "Wifi"): {"upload_mbps": 80.8, "download_mbps": 93.6},
-    ("Android", "WhatsApp", "ZIP Arşiv", "Wifi"): {"upload_mbps": 28.6, "download_mbps": 70.1},
-
-    # iOS - BiP - 5G & Wifi
-    ("iOS", "BiP", "SD 2dk Video", "5G"): {"upload_mbps": 5.05, "download_mbps": 346.0},
-    ("iOS", "BiP", "SD 2dk Video", "Wifi"): {"upload_mbps": 57.1, "download_mbps": 49.4},
-    ("iOS", "BiP", "SD Fotoğraf", "5G"): {"upload_mbps": 27.3, "download_mbps": 45.7},
-    ("iOS", "BiP", "SD Fotoğraf", "Wifi"): {"upload_mbps": 41.6, "download_mbps": 67.1},
-    ("iOS", "BiP", "MP4 Video", "5G"): {"upload_mbps": 70.3, "download_mbps": 104.6},
-    ("iOS", "BiP", "MP4 Video", "Wifi"): {"upload_mbps": 17.2, "download_mbps": 93.2},
-    ("iOS", "BiP", "PDF Belge", "5G"): {"upload_mbps": 69.1, "download_mbps": 104.0},
-    ("iOS", "BiP", "PDF Belge", "Wifi"): {"upload_mbps": 17.1, "download_mbps": 93.1},
-    ("iOS", "BiP", "RAR Arşiv", "5G"): {"upload_mbps": 64.0, "download_mbps": 104.0},
-    ("iOS", "BiP", "RAR Arşiv", "Wifi"): {"upload_mbps": 90.2, "download_mbps": 93.9},
-    ("iOS", "BiP", "TXT Metin", "5G"): {"upload_mbps": 57.5, "download_mbps": 100.0},
-    ("iOS", "BiP", "TXT Metin", "Wifi"): {"upload_mbps": 28.7, "download_mbps": 55.4},
-    ("iOS", "BiP", "XLSX Tablo", "5G"): {"upload_mbps": 47.8, "download_mbps": 75.3},
-    ("iOS", "BiP", "XLSX Tablo", "Wifi"): {"upload_mbps": 54.7, "download_mbps": 65.6},
-    ("iOS", "BiP", "ZIP Arşiv", "5G"): {"upload_mbps": 64.8, "download_mbps": 45.3},
-    ("iOS", "BiP", "ZIP Arşiv", "Wifi"): {"upload_mbps": 28.9, "download_mbps": 66.0},
-
-    # iOS - WhatsApp - 5G & Wifi
-    ("iOS", "WhatsApp", "MP4 Video", "5G"): {"upload_mbps": 3.99, "download_mbps": 105.0},
-    ("iOS", "WhatsApp", "PDF Belge", "5G"): {"upload_mbps": 6.13, "download_mbps": 92.6},
-    ("iOS", "WhatsApp", "SD Fotoğraf", "5G"): {"upload_mbps": 7.54, "download_mbps": 122.0},
-    ("iOS", "WhatsApp", "SD 2dk Video", "5G"): {"upload_mbps": 6.80, "download_mbps": 136.0},
-    ("iOS", "WhatsApp", "RAR Arşiv", "5G"): {"upload_mbps": 69.1, "download_mbps": 94.7},
-    ("iOS", "WhatsApp", "TXT Metin", "5G"): {"upload_mbps": 85.6, "download_mbps": 103.0},
-    ("iOS", "WhatsApp", "XLSX Tablo", "5G"): {"upload_mbps": 76.7, "download_mbps": 102.0},
-    ("iOS", "WhatsApp", "ZIP Arşiv", "5G"): {"upload_mbps": 82.4, "download_mbps": 104.0},
-    ("iOS", "WhatsApp", "MP4 Video", "Wifi"): {"upload_mbps": 75.3, "download_mbps": 82.8},
-    ("iOS", "WhatsApp", "PDF Belge", "Wifi"): {"upload_mbps": 36.8, "download_mbps": 75.5},
-    ("iOS", "WhatsApp", "SD Fotoğraf", "Wifi"): {"upload_mbps": 56.9, "download_mbps": 75.8},
-    ("iOS", "WhatsApp", "SD 2dk Video", "Wifi"): {"upload_mbps": 91.6, "download_mbps": 77.7},
-    ("iOS", "WhatsApp", "RAR Arşiv", "Wifi"): {"upload_mbps": 56.3, "download_mbps": 85.5},
-    ("iOS", "WhatsApp", "TXT Metin", "Wifi"): {"upload_mbps": 54.3, "download_mbps": 84.6},
-    ("iOS", "WhatsApp", "XLSX Tablo", "Wifi"): {"upload_mbps": 80.8, "download_mbps": 93.6},
-    ("iOS", "WhatsApp", "ZIP Arşiv", "Wifi"): {"upload_mbps": 28.6, "download_mbps": 70.1},
-}
-
-def yukle_ag_performans_tablosu(base_dir):
-    tablo_yolu = os.path.join(base_dir, "Ag_Performans_Test_Verileri.xlsx")
-    if not os.path.exists(tablo_yolu):
-        return
-    try:
-        raw_df = pd.read_excel(tablo_yolu)
-        for _, row in raw_df.iterrows():
-            senaryo = str(row.iloc[1]).strip() if len(row) > 1 else ""
-            baglanti = str(row.iloc[2]).strip().upper() if len(row) > 2 else ""
-            if not senaryo or senaryo == "nan" or "Uygulama" in senaryo:
-                continue
-
-            uyg = "BiP" if senaryo.upper().startswith("BIP") or senaryo.upper().startswith("BİP") else ("WhatsApp" if senaryo.upper().startswith("WA") else None)
-            if not uyg:
-                continue
-
-            senaryo_up = senaryo.upper()
-            if "SD PHOTO" in senaryo_up:
-                m_turu = "SD Fotoğraf"
-            elif "SD VIDEO" in senaryo_up:
-                m_turu = "SD 2dk Video"
-            elif "HD PHOTO" in senaryo_up:
-                m_turu = "HD Fotoğraf"
-            elif "HD VIDEO" in senaryo_up:
-                m_turu = "HD 2dk Video"
-            else:
-                continue
-
-            net = "Wifi" if "WIFI" in baglanti else "4.5G (LTE)"
-            j2d_up = pd.to_numeric(row.iloc[4], errors="coerce")
-            yhv_down = pd.to_numeric(row.iloc[5], errors="coerce")
-            if pd.notna(j2d_up) and pd.notna(yhv_down):
-                SPEEDTEST_META[("Android", uyg, m_turu, net)] = {
-                    "upload_mbps": float(j2d_up),
-                    "download_mbps": float(yhv_down)
-                }
-    except Exception:
-        pass
-
 def veri_isle(file_path):
     try:
         if not os.path.exists(file_path):
@@ -270,11 +143,6 @@ def veri_isle(file_path):
             df['Boyut (Bytes)'] = 0
             df['Boyut (MB)'] = 0.0
 
-        # --- SPEEDTEST ATAMALARI ---
-        meta = SPEEDTEST_META.get((platform, app_name, medya_turu, network), {})
-        speed_val = meta.get("upload_mbps") if is_upload else meta.get("download_mbps")
-        df['Speedtest (Mbps)'] = f"{speed_val} Mbps" if speed_val is not None else "-"
-
         df = df.dropna(subset=['Süre'])
 
         # --- KOŞUM / ETİKET BELİRLEME (SD/HD Photo ve SD/HD 2dkVideo için numaralandırma) ---
@@ -315,7 +183,7 @@ def veri_isle(file_path):
         df['İşlem Türü'] = islem_turu
         df['Uzantı'] = df['Test Adı'].apply(lambda x: str(x).split('.')[-1].upper() if '.' in str(x) else 'DİĞER')
 
-        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)', 'Platform', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
+        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Uzantı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Platform', 'Uygulama', 'Versiyon', 'Şebeke', 'Grup', 'Medya Kalitesi', 'Medya Türü', 'İşlem Türü']]
 
     except Exception as e:
         return None
@@ -375,7 +243,6 @@ def performans_yorumu(df, metrik_kolonu, islem_turu, sebeke_turu):
 
 # --- ÇALIŞMA DİZİNİ VE DOSYA TARAMA AYARI ---
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
-yukle_ag_performans_tablosu(script_dir)
 
 found_files = (
     glob.glob(os.path.join(script_dir, "*.xlsx")) + 
@@ -473,26 +340,16 @@ if all_data:
                 unsafe_allow_html=True
             )
 
-            # --- UYGULAMA BAZLI AYRI ORTALAMA SÜRELER VE SPEEDTEST (3 SÜTUN) ---
-            mcol1, mcol2, mcol3 = st.columns(3)
+            # --- UYGULAMA BAZLI AYRI ORTALAMA SÜRELER (2 SÜTUN) ---
+            mcol1, mcol2 = st.columns(2)
             bip_sub = sub_df[sub_df['Uygulama'] == 'BiP']
             wa_sub = sub_df[sub_df['Uygulama'] == 'WhatsApp']
 
             bip_ort_str = f"{bip_sub['Süre'].mean():.2f} sn" if not bip_sub.empty else "-"
             wa_ort_str = f"{wa_sub['Süre'].mean():.2f} sn" if not wa_sub.empty else "-"
 
-            speed_key = "upload_mbps" if islem_adi == "Upload" else "download_mbps"
-            bip_meta = SPEEDTEST_META.get((platform_adi, "BiP", secilen_tur, sebeke_adi), {})
-            wa_meta = SPEEDTEST_META.get((platform_adi, "WhatsApp", secilen_tur, sebeke_adi), {})
-            bip_speed = bip_meta.get(speed_key)
-            wa_speed = wa_meta.get(speed_key)
-
-            bip_speed_str = f"{bip_speed:g}" if bip_speed is not None else "-"
-            wa_speed_str = f"{wa_speed:g}" if wa_speed is not None else "-"
-
             mcol1.metric(f"BiP ({bip_surum}) Ortalama {islem_adi}", bip_ort_str)
             mcol2.metric(f"WhatsApp Ortalama {islem_adi}", wa_ort_str)
-            mcol3.metric(f"Speedtest (BiP / WA)", f"{bip_speed_str} / {wa_speed_str} Mbps")
 
             if secilen_tur in NUMBERED_MEDYA_TURLERI:
                 sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])
@@ -513,7 +370,7 @@ if all_data:
             fig = px.bar(
                 sub_df, x=x_ekseni, y='Süre', color='Grup',
                 barmode='group', text='Süre',
-                hover_data=['Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)'],
+                hover_data=['Boyut (MB)', 'Boyut (Bytes)'],
                 category_orders={
                     "Grup": mevcut_gruplar,
                     x_ekseni: kategori_sralama
@@ -636,8 +493,8 @@ if all_data:
             summary_df.columns = ['Platform', 'Şebeke', 'İşlem Türü', 'Uygulama/Grup', 'Ortalama Süre (sn)', 'Ortalama Boyut (MB)', 'Toplam Veri']
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-        with st.expander(f"📊 {secilen_tur} — Tüm Veri Tablosu (Dosya Büyüklükleri ve Speedtest Dahil)"):
-            tablo_df = tur_df[['Platform', 'Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)', 'Speedtest (Mbps)']].copy()
+        with st.expander(f"📊 {secilen_tur} — Tüm Veri Tablosu (Dosya Büyüklükleri Dahil)"):
+            tablo_df = tur_df[['Platform', 'Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre', 'Boyut (MB)', 'Boyut (Bytes)']].copy()
             tablo_df.rename(columns={'Süre': 'Süre (sn)'}, inplace=True)
             st.dataframe(tablo_df, use_container_width=True, hide_index=True)
 else:

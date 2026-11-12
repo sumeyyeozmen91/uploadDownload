@@ -20,8 +20,7 @@ for p in PREFIXES:
             ALLOWED_FILES.add(f"{p}_{op}_{net}")
             ALLOWED_FILES.add(f"{p}_wa_{op}_{net}")
             ALLOWED_FILES.add(f"{p}_wa_ios_{op}_{net}")
-            if p == "sd_2dkvideo":
-                ALLOWED_FILES.add(f"{p}_ios_{op}_{net}")
+            ALLOWED_FILES.add(f"{p}_ios_{op}_{net}")
 
 MEDYA_TURU_ISIMLERI = {
     "hd_2dkvideo": "HD 2dk Video",
@@ -128,9 +127,9 @@ def veri_isle(file_path):
         else:
             df['Süre'] = df[duration_col]
 
-        # iOS BiP Download verileri halihazırda saniye (sn) cinsindendir;
+        # iOS BiP Download verileri (ve saniye mertebesinde loglanmış <50 sn iOS BiP verileri) halihazırda saniye (sn) cinsindendir;
         # diğer tüm veriler milisaniye (ms) cinsinden olduğu için saniyeye (sn) çevrilir.
-        is_already_seconds = (is_ios and not is_wa and not is_upload)
+        is_already_seconds = (is_ios and not is_wa and (not is_upload or df['Süre'].max() < 50))
         if not is_already_seconds:
             df['Süre'] = df['Süre'] / 1000.0
         df['Süre'] = df['Süre'].round(2)
@@ -260,6 +259,10 @@ for f in found_files:
 
 if all_data:
     full_df = pd.concat(all_data, ignore_index=True)
+
+    # Sadece hem BiP hem de WhatsApp verisi bulunan ortak senaryoları tut
+    uygulama_sayilari = full_df.groupby(['Platform', 'Medya Türü', 'Şebeke', 'İşlem Türü'])['Uygulama'].transform('nunique')
+    full_df = full_df[uygulama_sayilari >= 2].copy()
 
     # --- FİLTRELER (SIDEBAR) - TEK EKRANDA 8 GRAFİK İÇİN SADECE DOSYA TÜRÜ FİLTRESİ ---
     st.sidebar.header("⚙️ Analiz Ayarları")

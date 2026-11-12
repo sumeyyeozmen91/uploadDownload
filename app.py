@@ -481,6 +481,119 @@ if all_data:
 
         st.markdown("---")
 
+    # =========================================================================
+    # YÖNETİCİ ÖZETİ (DİREKTÖR SUNUMU İÇİN MADDE MADDE & NOKTA ATIŞI FORMAT)
+    # =========================================================================
+    def yonetici_ozeti_ciz(df_tur, medya_adi):
+        if df_tur.empty:
+            return
+
+        up_df = df_tur[df_tur['İşlem Türü'] == 'Upload']
+        down_df = df_tur[df_tur['İşlem Türü'] == 'Download']
+
+        def senaryo_maddeleri_uret(sub_df):
+            maddeler = []
+            for plat in ["Android", "iOS"]:
+                p_df = sub_df[sub_df['Platform'] == plat]
+                if not p_df.empty:
+                    for seb in sorted(p_df['Şebeke'].unique()):
+                        s_df = p_df[p_df['Şebeke'] == seb]
+                        bip_s = s_df[s_df['Uygulama'] == 'BiP']['Süre']
+                        wa_s = s_df[s_df['Uygulama'] == 'WhatsApp']['Süre']
+                        if not bip_s.empty and not wa_s.empty:
+                            b_ort, w_ort = bip_s.mean(), wa_s.mean()
+                            kazanan = "BiP" if b_ort < w_ort else "WhatsApp"
+                            fark_sn = abs(b_ort - w_ort)
+                            renk = "#0A6CAA" if kazanan == "BiP" else "#1E8E3E"
+                            maddeler.append(
+                                f"<li style='margin-bottom:4px;'><b>{plat} ({seb}):</b> "
+                                f"BiP <b>{b_ort:.2f} sn</b> &nbsp;|&nbsp; WhatsApp <b>{w_ort:.2f} sn</b> "
+                                f"&nbsp;→&nbsp; <span style='color:{renk}; font-weight:700;'>{kazanan} {fark_sn:.2f} sn daha hızlı</span></li>"
+                            )
+            return "<ul style='margin:4px 0 0 18px; padding:0;'>" + "".join(maddeler) + "</ul>" if maddeler else "<ul style='margin:4px 0 0 18px; padding:0;'><li>Karşılaştırma verisi bulunmamaktadır.</li></ul>"
+
+        up_metin = senaryo_maddeleri_uret(up_df)
+        down_metin = senaryo_maddeleri_uret(down_df)
+
+        # --- 03 WI-FI / LTE TUTARLILIK ---
+        wifi_sub = df_tur[df_tur['Şebeke'] == 'Wifi']
+        mobil_sub = df_tur[df_tur['Şebeke'] != 'Wifi']
+        tutarlilik_maddeler = []
+        if not wifi_sub.empty and not mobil_sub.empty:
+            w_bip = wifi_sub[wifi_sub['Uygulama'] == 'BiP']['Süre'].mean()
+            m_bip = mobil_sub[mobil_sub['Uygulama'] == 'BiP']['Süre'].mean()
+            w_wa = wifi_sub[wifi_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
+            m_wa = mobil_sub[mobil_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
+            tutarlilik_maddeler.append(
+                f"<li style='margin-bottom:4px;'><b>BiP Şebeke Ortalaması:</b> Wi-Fi <b>{w_bip:.2f} sn</b> &nbsp;|&nbsp; Mobil (LTE/5G) <b>{m_bip:.2f} sn</b></li>"
+            )
+            tutarlilik_maddeler.append(
+                f"<li style='margin-bottom:4px;'><b>WhatsApp Şebeke Ortalaması:</b> Wi-Fi <b>{w_wa:.2f} sn</b> &nbsp;|&nbsp; Mobil (LTE/5G) <b>{m_wa:.2f} sn</b></li>"
+            )
+        elif not wifi_sub.empty:
+            w_bip = wifi_sub[wifi_sub['Uygulama'] == 'BiP']['Süre'].mean()
+            w_wa = wifi_sub[wifi_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
+            tutarlilik_maddeler.append(
+                f"<li style='margin-bottom:4px;'><b>Wi-Fi Genel Ortalaması:</b> BiP <b>{w_bip:.2f} sn</b> &nbsp;|&nbsp; WhatsApp <b>{w_wa:.2f} sn</b></li>"
+            )
+        elif not mobil_sub.empty:
+            m_bip = mobil_sub[mobil_sub['Uygulama'] == 'BiP']['Süre'].mean()
+            m_wa = mobil_sub[mobil_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
+            tutarlilik_maddeler.append(
+                f"<li style='margin-bottom:4px;'><b>Mobil (LTE/5G) Genel Ortalaması:</b> BiP <b>{m_bip:.2f} sn</b> &nbsp;|&nbsp; WhatsApp <b>{m_wa:.2f} sn</b></li>"
+            )
+        tutarlilik_metin = "<ul style='margin:4px 0 0 18px; padding:0;'>" + "".join(tutarlilik_maddeler) + "</ul>"
+
+        # --- ÖNCELİK SIRALAMASI ---
+        mevcut_platlar = "/".join(sorted(df_tur['Platform'].unique()))
+        oncelik_str = f"🎯 Öncelik: {mevcut_platlar} {medya_adi} Upload  →  {medya_adi} Download  →  Wi-Fi/LTE Tutarlılığı"
+
+        ozet_html = f"""
+        <div style="background-color:#F9FCFE; border:1px solid #E2E8F0; border-radius:18px; padding:24px 28px; margin:12px 0 24px 0; font-family:Arial, sans-serif;">
+            <div style="color:#0D65A1; font-size:24px; font-weight:700; margin-bottom:18px;">
+                Yönetici Özeti | {medya_adi}
+            </div>
+            <div style="background-color:#EAF5FB; border-radius:14px; padding:14px 20px; margin-bottom:12px; box-shadow:0 2px 4px rgba(0,0,0,0.08);">
+                <div style="color:#0A6CAA; font-size:16px; font-weight:700; margin-bottom:4px;">
+                    1 &nbsp;{medya_adi.upper()} Upload
+                </div>
+                <div style="color:#233545; font-size:14.5px; line-height:1.5;">
+                    {up_metin}
+                </div>
+            </div>
+            <div style="background-color:#EAF5FB; border-radius:14px; padding:14px 20px; margin-bottom:12px; box-shadow:0 2px 4px rgba(0,0,0,0.08);">
+                <div style="color:#0A6CAA; font-size:16px; font-weight:700; margin-bottom:4px;">
+                    2 &nbsp;{medya_adi.upper()} Download
+                </div>
+                <div style="color:#233545; font-size:14.5px; line-height:1.5;">
+                    {down_metin}
+                </div>
+            </div>
+            <div style="background-color:#EAF5FB; border-radius:14px; padding:14px 20px; margin-bottom:16px; box-shadow:0 2px 4px rgba(0,0,0,0.08);">
+                <div style="color:#0A6CAA; font-size:16px; font-weight:700; margin-bottom:4px;">
+                    3 &nbsp;Wi-Fi / LTE (5G) Tutarlılık
+                </div>
+                <div style="color:#233545; font-size:14.5px; line-height:1.5;">
+                    {tutarlilik_metin}
+                </div>
+            </div>
+            <div style="padding:2px 6px;">
+                <div style="color:#0D65A1; font-size:16.5px; font-weight:700; margin-bottom:4px;">
+                    Aksiyon & Odak Noktası
+                </div>
+                <ul style="color:#233545; font-size:14px; line-height:1.5; margin:0 0 10px 18px; padding:0;">
+                    <li>Medya sıkıştırma/işleme adımları ile ağ aktarım süreleri ayrıştırılarak darboğaz noktaları optimize edilmeli.</li>
+                </ul>
+                <div style="color:#0D65A1; font-size:15px; font-weight:700;">
+                    {oncelik_str}
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(ozet_html, unsafe_allow_html=True)
+
+    yonetici_ozeti_ciz(tur_df, secilen_tur)
+
     # --- TABLOLAR (8 SENARYONUN TOPLU ÖZETİ VE DETAY VERİLERİ) ---
     if not tur_df.empty:
         with st.expander(f"📌 {secilen_tur} — Tüm Senaryolar İçin Uygulama Bazlı Ortalama Süreler Tablosu"):

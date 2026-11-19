@@ -38,13 +38,26 @@ MEDYA_TURU_ISIMLERI = {
 NUMBERED_PREFIXES = {"sd_photo", "sd_2dkvideo", "hd_photo", "hd_2dkvideo"}
 NUMBERED_MEDYA_TURLERI = {"SD Fotoğraf", "SD 2dk Video", "HD Fotoğraf", "HD 2dk Video"}
 
+# Adında şebeke bilgisi olmayan dosyalar (ör. HD_2DkVideo_iOS_Download.xlsx) bu şebekede ölçülmüş kabul edilir
+# ve aynı senaryonun şebeke ekli eski dosyasının (ör. HD_2DkVideo_iOS_Download_Wifi.xlsx) YERİNE kullanılır.
+SEBEKESIZ_VARSAYILAN = "wifi"
+
+def sebekesiz_mi(file_path):
+    base = os.path.basename(file_path).split('.')[0].lower().strip()
+    return base.endswith(("_upload", "_download"))
+
+def normalize_base_name(file_path):
+    base = os.path.basename(file_path).split('.')[0].lower().strip()
+    if sebekesiz_mi(file_path):
+        base = f"{base}_{SEBEKESIZ_VARSAYILAN}"
+    return base
+
 def veri_isle(file_path):
     try:
         if not os.path.exists(file_path):
             return None
 
-        fname = os.path.basename(file_path)
-        base_name = fname.split('.')[0].lower().strip()
+        base_name = normalize_base_name(file_path)
 
         if base_name not in ALLOWED_FILES:
             return None
@@ -251,6 +264,16 @@ found_files = (
 )
 found_files = list(set(found_files))
 
+# Aynı senaryoya (ör. hd_2dkvideo_ios_download_wifi) ait birden fazla dosya varsa
+# adında şebeke bulunmayan yeni dosya, şebeke ekli eski dosyanın yerine geçer.
+senaryo_dosyalari = {}
+for f in sorted(found_files):
+    anahtar = normalize_base_name(f)
+    if anahtar in senaryo_dosyalari and not sebekesiz_mi(f):
+        continue
+    senaryo_dosyalari[anahtar] = f
+found_files = list(senaryo_dosyalari.values())
+
 all_data = []
 for f in found_files:
     res = veri_isle(f)
@@ -260,9 +283,12 @@ for f in found_files:
 if all_data:
     full_df = pd.concat(all_data, ignore_index=True)
 
-    # Sadece hem BiP hem de WhatsApp verisi bulunan ortak senaryoları tut
-    uygulama_sayilari = full_df.groupby(['Platform', 'Medya Türü', 'Şebeke', 'İşlem Türü'])['Uygulama'].transform('nunique')
-    full_df = full_df[uygulama_sayilari >= 2].copy()
+    # BiP verisi bulunan senaryoları tut (WhatsApp verisi olmasa bile; ör. iOS HD 2dk Video).
+    # Yalnızca WhatsApp verisi olan (BiP karşılığı olmayan) senaryolar gösterilmez.
+    bip_var = (full_df['Uygulama'] == 'BiP').groupby(
+        [full_df['Platform'], full_df['Medya Türü'], full_df['Şebeke'], full_df['İşlem Türü']]
+    ).transform('any')
+    full_df = full_df[bip_var].copy()
 
     # --- FİLTRELER (SIDEBAR) - TEK EKRANDA 8 GRAFİK İÇİN SADECE DOSYA TÜRÜ FİLTRESİ ---
     st.sidebar.header("⚙️ Analiz Ayarları")
@@ -510,6 +536,11 @@ if all_data:
                                 f"BiP <b>{b_ort:.2f} sn</b> &nbsp;|&nbsp; WhatsApp <b>{w_ort:.2f} sn</b> "
                                 f"&nbsp;→&nbsp; <span style='color:{renk}; font-weight:700;'>{kazanan} {fark_sn:.2f} sn daha hızlı</span></li>"
                             )
+                        elif not bip_s.empty:
+                            maddeler.append(
+                                f"<li style='margin-bottom:4px;'><b>{plat} ({seb}):</b> "
+                                f"BiP <b>{bip_s.mean():.2f} sn</b> &nbsp;|&nbsp; WhatsApp <i>verisi yok</i></li>"
+                            )
             return "<ul style='margin:4px 0 0 18px; padding:0;'>" + "".join(maddeler) + "</ul>" if maddeler else "<ul style='margin:4px 0 0 18px; padding:0;'><li>Karşılaştırma verisi bulunmamaktadır.</li></ul>"
 
         up_metin = senaryo_maddeleri_uret(up_df)
@@ -519,28 +550,27 @@ if all_data:
         wifi_sub = df_tur[df_tur['Şebeke'] == 'Wifi']
         mobil_sub = df_tur[df_tur['Şebeke'] != 'Wifi']
         tutarlilik_maddeler = []
+
+        def _ort(sub, uygulama):
+            # Veri yoksa "-" döner (BiP-only senaryolarda "nan sn" görünmesin)
+            deger = sub[sub['Uygulama'] == uygulama]['Süre'].mean()
+            return "-" if pd.isna(deger) else f"{deger:.2f} sn"
+
         if not wifi_sub.empty and not mobil_sub.empty:
-            w_bip = wifi_sub[wifi_sub['Uygulama'] == 'BiP']['Süre'].mean()
-            m_bip = mobil_sub[mobil_sub['Uygulama'] == 'BiP']['Süre'].mean()
-            w_wa = wifi_sub[wifi_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
-            m_wa = mobil_sub[mobil_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
             tutarlilik_maddeler.append(
-                f"<li style='margin-bottom:4px;'><b>BiP Şebeke Ortalaması:</b> Wi-Fi <b>{w_bip:.2f} sn</b> &nbsp;|&nbsp; Mobil (LTE/5G) <b>{m_bip:.2f} sn</b></li>"
+                f"<li style='margin-bottom:4px;'><b>BiP Şebeke Ortalaması:</b> Wi-Fi <b>{_ort(wifi_sub, 'BiP')}</b> &nbsp;|&nbsp; Mobil (LTE/5G) <b>{_ort(mobil_sub, 'BiP')}</b></li>"
             )
-            tutarlilik_maddeler.append(
-                f"<li style='margin-bottom:4px;'><b>WhatsApp Şebeke Ortalaması:</b> Wi-Fi <b>{w_wa:.2f} sn</b> &nbsp;|&nbsp; Mobil (LTE/5G) <b>{m_wa:.2f} sn</b></li>"
-            )
+            if (df_tur['Uygulama'] == 'WhatsApp').any():
+                tutarlilik_maddeler.append(
+                    f"<li style='margin-bottom:4px;'><b>WhatsApp Şebeke Ortalaması:</b> Wi-Fi <b>{_ort(wifi_sub, 'WhatsApp')}</b> &nbsp;|&nbsp; Mobil (LTE/5G) <b>{_ort(mobil_sub, 'WhatsApp')}</b></li>"
+                )
         elif not wifi_sub.empty:
-            w_bip = wifi_sub[wifi_sub['Uygulama'] == 'BiP']['Süre'].mean()
-            w_wa = wifi_sub[wifi_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
             tutarlilik_maddeler.append(
-                f"<li style='margin-bottom:4px;'><b>Wi-Fi Genel Ortalaması:</b> BiP <b>{w_bip:.2f} sn</b> &nbsp;|&nbsp; WhatsApp <b>{w_wa:.2f} sn</b></li>"
+                f"<li style='margin-bottom:4px;'><b>Wi-Fi Genel Ortalaması:</b> BiP <b>{_ort(wifi_sub, 'BiP')}</b> &nbsp;|&nbsp; WhatsApp <b>{_ort(wifi_sub, 'WhatsApp')}</b></li>"
             )
         elif not mobil_sub.empty:
-            m_bip = mobil_sub[mobil_sub['Uygulama'] == 'BiP']['Süre'].mean()
-            m_wa = mobil_sub[mobil_sub['Uygulama'] == 'WhatsApp']['Süre'].mean()
             tutarlilik_maddeler.append(
-                f"<li style='margin-bottom:4px;'><b>Mobil (LTE/5G) Genel Ortalaması:</b> BiP <b>{m_bip:.2f} sn</b> &nbsp;|&nbsp; WhatsApp <b>{m_wa:.2f} sn</b></li>"
+                f"<li style='margin-bottom:4px;'><b>Mobil (LTE/5G) Genel Ortalaması:</b> BiP <b>{_ort(mobil_sub, 'BiP')}</b> &nbsp;|&nbsp; WhatsApp <b>{_ort(mobil_sub, 'WhatsApp')}</b></li>"
             )
         tutarlilik_metin = "<ul style='margin:4px 0 0 18px; padding:0;'>" + "".join(tutarlilik_maddeler) + "</ul>"
 

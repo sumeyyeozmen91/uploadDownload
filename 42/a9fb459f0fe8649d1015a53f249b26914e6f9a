@@ -1,0 +1,23 @@
+app.py
+  s_77fd0623732533::t_2241e09c0b3733 539-543
+  s_77fd0623732533::t_0d525c4cde85b6 553-558,561,563-566,569,573
+  s_77fd0623732533::t_1ea9e3dfa7bcb7 41-54,60
+  s_77fd0623732533::t_ff6a87b0d6e072 267-276
+  s_77fd0623732533::t_dbb11601362dc8 286-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "42a9fb459f0fe8649d1015a53f249b26914e6f9a",
+  "prompts": {},
+  "sessions": {
+    "s_77fd0623732533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f123a31f-cd9f-41ec-9b06-b9b77498d169",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "EXT02D057428 <burak.ozden@consultant.turkcell.com.tr>"
+    }
+  }
+}

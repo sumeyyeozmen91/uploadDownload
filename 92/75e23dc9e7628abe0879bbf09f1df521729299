@@ -1,0 +1,14 @@
+briefing.md
+  h_64505b34b2ef5d 3-5,7-9,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9275e23dc9e7628abe0879bbf09f1df521729299",
+  "prompts": {},
+  "humans": {
+    "h_64505b34b2ef5d": {
+      "author": "EXT02D057428 <burak.ozden@consultant.turkcell.com.tr>"
+    }
+  }
+}

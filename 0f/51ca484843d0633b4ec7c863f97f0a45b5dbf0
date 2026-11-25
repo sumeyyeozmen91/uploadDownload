@@ -1,0 +1,32 @@
+app.py
+  s_108eb50e539e2a::t_2c870ece6b59a0 182-183
+  s_108eb50e539e2a::t_5a4739e1c84ee6 265-266,269-270,274,276
+  s_108eb50e539e2a::t_72ff1c977f2707 244,249
+  s_108eb50e539e2a::t_503fbe21a05fd0 238
+  s_108eb50e539e2a::t_23bc3a76c145f4 16-19
+  s_108eb50e539e2a::t_b11895314f8e06 75-76,80
+  s_108eb50e539e2a::t_95db36adbf6b50 283
+  s_108eb50e539e2a::t_df709da3c30f52 196
+  s_108eb50e539e2a::t_e401b475e242d4 25-26
+  s_108eb50e539e2a::t_1033dc1582d5e8 293
+  s_108eb50e539e2a::t_bb588317415332 335
+  s_108eb50e539e2a::t_e4e0a69c12426b 242
+briefing.md
+  s_108eb50e539e2a::t_d50cf984febd27 30-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f51ca484843d0633b4ec7c863f97f0a45b5dbf0",
+  "prompts": {},
+  "sessions": {
+    "s_108eb50e539e2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5dc00b92-d5cd-481a-998d-b9ac22780662",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "EXT02D057428 <burak.ozden@consultant.turkcell.com.tr>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+app.py
+  s_108eb50e539e2a::t_3700af70a36724 97-102
+  s_108eb50e539e2a::t_62db01404a11d5 136-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6248a818e2f847b54e68508e96333b3ea64490bb",
+  "prompts": {},
+  "sessions": {
+    "s_108eb50e539e2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5dc00b92-d5cd-481a-998d-b9ac22780662",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "EXT02D057428 <burak.ozden@consultant.turkcell.com.tr>"
+    }
+  }
+}

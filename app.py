@@ -38,23 +38,6 @@ KLASOR_DESENI = re.compile(
     re.IGNORECASE,
 )
 
-# Karşılaştırma modları. "test": değerlendirilen grup, "ref": kıyaslandığı grup.
-MODLAR = {
-    "wa": {
-        "sekme": "🆚 BiP vs WhatsApp",
-        "baslik": "BiP vs WhatsApp",
-        "test_kisa": "BiP",
-        "ref_kisa": "WhatsApp",
-        "ref_ablatif": "WhatsApp'tan",
-    },
-    "surum": {
-        "sekme": "🔄 BiP Sürüm Karşılaştırması",
-        "baslik": "BiP Eski vs Yeni Sürüm",
-        "test_kisa": "Yeni sürüm",
-        "ref_kisa": "Eski sürüm",
-        "ref_ablatif": "eski sürümden",
-    },
-}
 RENK_BIP = "#1587CB"
 RENK_BIP_ESKI = "#9DB8CF"
 RENK_WA = "#25D366"
@@ -147,7 +130,6 @@ def veri_yukle(kok, _imza):
                 continue
             df['Uygulama'] = uygulama
             df['Platform'] = platform
-            df['Versiyon'] = surum if uygulama == "BiP" else "-"
             df['Grup'] = f"BiP {surum}" if uygulama == "BiP" else "WhatsApp"
             df['Kaynak Dosya'] = os.path.relpath(dosya, kok)
             parcalar.append(df)
@@ -164,48 +146,58 @@ if full_df.empty:
     st.error(f"❌ '{script_dir}' altında Bip_Android_* / Bip_iOS_* / Whatsapp_* klasörlerinde geçerli Excel dosyası bulunamadı!")
     st.stop()
 
-# Platform başına BiP sürümleri (küçükten büyüğe)
-bip_surumleri = {
-    p: sorted(full_df[(full_df['Uygulama'] == 'BiP') & (full_df['Platform'] == p)]['Versiyon'].unique(),
-              key=surum_anahtari)
-    for p in PLATFORM_SIRASI
-}
-wa_platformlari = set(full_df[full_df['Uygulama'] == 'WhatsApp']['Platform'].unique())
 
+# =========================================================================
+# KARŞILAŞTIRMALAR (DROPDOWN SEÇENEKLERİ)
+# =========================================================================
+def karsilastirmalari_olustur(df):
+    """Briefing'deki 4 karşılaştırma: her platform için eski BiP vs WhatsApp ve eski BiP vs yeni BiP.
+    'test': değerlendirilen grup, 'ref': kıyaslandığı grup, 'sira': grafikteki gösterim sırası."""
+    bip_surumleri = {
+        p: sorted({g.replace("BiP ", "") for g in df[(df['Uygulama'] == 'BiP') & (df['Platform'] == p)]['Grup']},
+                  key=surum_anahtari)
+        for p in PLATFORM_SIRASI
+    }
+    wa_var = {p: ((df['Uygulama'] == 'WhatsApp') & (df['Platform'] == p)).any() for p in PLATFORM_SIRASI}
 
-def karsilastirma_tanimla(mod):
-    """Her platform için {'test', 'ref', 'sira', 'renk'} tanımı döndürür."""
-    tanim = {}
+    liste = []
     for p in PLATFORM_SIRASI:
-        surumler = bip_surumleri.get(p, [])
-        if mod == "wa":
-            # Briefing: WhatsApp, eski (ilk) BiP sürümüyle karşılaştırılır
-            if not surumler or p not in wa_platformlari:
-                continue
-            test, ref = f"BiP {surumler[0]}", "WhatsApp"
-            tanim[p] = {'test': test, 'ref': ref, 'sira': [test, ref],
-                        'renk': {test: RENK_BIP, ref: RENK_WA}}
-        else:
-            if len(surumler) < 2:
-                continue
-            ref, test = f"BiP {surumler[0]}", f"BiP {surumler[-1]}"
-            tanim[p] = {'test': test, 'ref': ref, 'sira': [ref, test],
-                        'renk': {ref: RENK_BIP_ESKI, test: RENK_BIP}}
-    return tanim
+        s = bip_surumleri[p]
+        if s and wa_var[p]:
+            test, ref = f"BiP {s[0]}", "WhatsApp"
+            liste.append({
+                'ad': f"{p}: BiP {s[0]} vs WhatsApp", 'platform': p, 'test': test, 'ref': ref,
+                'sira': [test, ref], 'renk': {test: RENK_BIP, ref: RENK_WA},
+                'test_kisa': test, 'ref_kisa': "WhatsApp", 'ref_ablatif': "WhatsApp'tan",
+            })
+    for p in PLATFORM_SIRASI:
+        s = bip_surumleri[p]
+        if len(s) >= 2:
+            ref, test = f"BiP {s[0]}", f"BiP {s[-1]}"
+            liste.append({
+                'ad': f"{p}: BiP {s[0]} vs BiP {s[-1]}", 'platform': p, 'test': test, 'ref': ref,
+                'sira': [ref, test], 'renk': {ref: RENK_BIP_ESKI, test: RENK_BIP},
+                'test_kisa': test, 'ref_kisa': ref, 'ref_ablatif': f"{s[0]} sürümünden",
+            })
+    return liste
 
 
-def senaryo_tablosu(df, tanim):
-    """Medya × Platform × Şebeke × İşlem bazında test/ref ortalamaları, Speed Test ve farkları."""
-    g = df.groupby(['Medya Türü', 'Platform', 'Şebeke', 'İşlem Türü', 'Grup']).agg(
-        ort=('Süre', 'mean'), st=('Speed Test (Mbps)', 'first'), n=('Süre', 'count')
+karsilastirmalar = karsilastirmalari_olustur(full_df)
+if not karsilastirmalar:
+    st.error("❌ Karşılaştırma için gerekli klasörler bulunamadı "
+             "(Bip_<platform>_<sürüm> + Whatsapp_<platform> veya platform başına iki BiP sürümü).")
+    st.stop()
+
+
+def senaryo_tablosu(df, k):
+    """Medya × Şebeke × İşlem bazında test/ref ortalamaları, Speed Test ve farkları."""
+    g = df.groupby(['Medya Türü', 'Şebeke', 'İşlem Türü', 'Grup']).agg(
+        ort=('Süre', 'mean'), st=('Speed Test (Mbps)', 'first')
     ).reset_index()
     satirlar = []
-    for (medya, plat, seb, islem), grp in g.groupby(['Medya Türü', 'Platform', 'Şebeke', 'İşlem Türü']):
-        t = tanim.get(plat)
-        if not t:
-            continue
-        test = grp[grp['Grup'] == t['test']]
-        ref = grp[grp['Grup'] == t['ref']]
+    for (medya, seb, islem), grp in g.groupby(['Medya Türü', 'Şebeke', 'İşlem Türü']):
+        test = grp[grp['Grup'] == k['test']]
+        ref = grp[grp['Grup'] == k['ref']]
         if test.empty or ref.empty:
             continue
         tt, rr = test.iloc[0], ref.iloc[0]
@@ -213,8 +205,7 @@ def senaryo_tablosu(df, tanim):
         durum = "eşit" if abs(fark) < ESIT_ESIGI_YUZDE else ("hızlı" if fark < 0 else "yavaş")
         kucuk = min(tt['ort'], rr['ort'])
         satirlar.append({
-            'Medya Türü': medya, 'Platform': plat, 'Şebeke': seb, 'İşlem Türü': islem,
-            'test_grup': t['test'], 'ref_grup': t['ref'],
+            'Medya Türü': medya, 'Şebeke': seb, 'İşlem Türü': islem,
             'test_ort': tt['ort'], 'ref_ort': rr['ort'], 'test_st': tt['st'], 'ref_st': rr['st'],
             'fark_pct': fark, 'durum': durum,
             'oran': (max(tt['ort'], rr['ort']) / kucuk - 1) * 100 if kucuk > 0 else 0.0,
@@ -232,168 +223,46 @@ def sure_str(sn):
 
 
 def st_str(mbps):
-    return f"{mbps:.1f} Mbps" if pd.notna(mbps) else "-"
+    return f"{mbps:.1f} Mbps" if mbps is not None and pd.notna(mbps) else "-"
 
 
 def hat_farki_var(test_st, ref_st):
-    if pd.isna(test_st) or pd.isna(ref_st) or min(test_st, ref_st) <= 0:
+    if test_st is None or ref_st is None or pd.isna(test_st) or pd.isna(ref_st) or min(test_st, ref_st) <= 0:
         return False
     return max(test_st, ref_st) / min(test_st, ref_st) > SPEED_TEST_UYARI_ORANI
 
 
 # =========================================================================
-# BAŞLIK, CİHAZ BİLGİLERİ, SIDEBAR
+# BAŞLIK, SEÇİMLER, CİHAZ BİLGİLERİ
 # =========================================================================
-st.sidebar.header("⚙️ Analiz Ayarları")
-secilen_tur = st.sidebar.selectbox(
-    "Detay grafikleri için medya türü:",
-    [m for m in MEDYA_SIRASI if m in set(full_df['Medya Türü'])],
-)
-st.sidebar.markdown("**Yüklenen klasörler**")
-for (uyg, plat, ver), n in full_df.groupby(['Uygulama', 'Platform', 'Versiyon'])['Kaynak Dosya'].nunique().items():
-    st.sidebar.caption(f"{uyg} {plat}{'' if ver == '-' else ' ' + ver}: {n} dosya")
+st.title("🚀 BiP Fotoğraf & Video Upload / Download Performans Paneli")
+
+sec1, sec2 = st.columns([2, 1])
+secilen_ad = sec1.selectbox("Karşılaştırma seçin:", [k['ad'] for k in karsilastirmalar])
+k = next(x for x in karsilastirmalar if x['ad'] == secilen_ad)
+kiyas_df = full_df[(full_df['Platform'] == k['platform']) & full_df['Grup'].isin(k['sira'])]
+secilen_tur = sec2.selectbox("Medya türü:", [m for m in MEDYA_SIRASI if m in set(kiyas_df['Medya Türü'])])
+
 if atlanan_dosyalar:
     with st.sidebar.expander(f"⚠️ Atlanan {len(atlanan_dosyalar)} dosya/klasör"):
         for ad, neden in atlanan_dosyalar:
             st.caption(f"{ad} — {neden}")
 
-and_s = " → ".join(bip_surumleri.get("Android", [])) or "-"
-ios_s = " → ".join(bip_surumleri.get("iOS", [])) or "-"
-
-st.title("🚀 BiP Fotoğraf & Video Upload / Download Performans Paneli")
-st.markdown(
-    f"**BiP vs WhatsApp** ve **BiP sürüm** karşılaştırması · **LTE** ve **Wi-Fi** şebekeleri ayrı ayrı · "
-    f"Android BiP **{and_s}** · iOS BiP **{ios_s}**"
-)
-
-col_and_info, col_ios_info = st.columns(2)
-with col_and_info:
+if k['platform'] == "Android":
     st.info(
-        "🤖 **Android Test Cihazları**\n"
-        "- 📤 **Upload:** `Galaxy S21 FE 5G` (`+905316892026`)\n"
-        "- 📥 **Download:** `Galaxy A51` (`+905360301821`)"
+        "🤖 **Android Test Cihazları** · 📤 Upload: `Galaxy S21 FE 5G` (`+905316892026`) · "
+        "📥 Download: `Galaxy A51` (`+905360301821`)"
     )
-with col_ios_info:
+else:
     st.success(
-        "🍎 **iOS Test Cihazları**\n"
-        "- 📤 **Upload:** `iPhone 16 Pro Max` (`05396340104`)\n"
-        "- 📥 **Download:** `iPhone 15 Pro Max` (`05396341373`)"
+        "🍎 **iOS Test Cihazları** · 📤 Upload: `iPhone 16 Pro Max` (`05396340104`) · "
+        "📥 Download: `iPhone 15 Pro Max` (`05396341373`)"
     )
 st.caption("Süre: saniye (sn) · Speed Test: ilgili testin başında ölçülen hat hızı (Mbps) · Her senaryo 10 koşum")
 
 
 # =========================================================================
-# YÖNETİCİ ÖZETİ (TÜM MEDYA TÜRLERİ — KISA, ÖZ, NET)
-# =========================================================================
-def yonetici_ozeti_ciz(ozet, mod, tanim):
-    m = MODLAR[mod]
-    if ozet.empty:
-        st.info("Yönetici özeti için karşılaştırılabilir senaryo yok.")
-        return
-
-    toplam = len(ozet)
-    kazanc = int((ozet['durum'] == 'hızlı').sum())
-    esit = int((ozet['durum'] == 'eşit').sum())
-    kapsam = " · ".join(f"{p}: {t['test']} vs {t['ref']}" for p, t in tanim.items())
-
-    def sebeke_satiri(seb):
-        s = ozet[ozet['Şebeke'] == seb]
-        parcalar = []
-        for islem in ISLEM_SIRASI:
-            si = s[s['İşlem Türü'] == islem]
-            if not si.empty:
-                parcalar.append(f"{islem} <b>{(si['durum'] == 'hızlı').sum()}/{len(si)}</b>")
-        return f"{SEBEKE_IKON[seb]} <b>{seb}:</b> " + " · ".join(parcalar)
-
-    def senaryo_adi(r):
-        return f"{r['Platform']} {r['Şebeke']} {r['Medya Türü']} {r['İşlem Türü']}"
-
-    satirlar = [sebeke_satiri(seb) for seb in SEBEKE_SIRASI if (ozet['Şebeke'] == seb).any()]
-
-    hizli = ozet[ozet['durum'] == 'hızlı']
-    if not hizli.empty:
-        r = hizli.loc[hizli['oran'].idxmax()]
-        satirlar.append(f"🏆 <b>En büyük kazanım:</b> {senaryo_adi(r)} — {sure_str(r['test_ort'])} vs "
-                        f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} hızlı)")
-    yavas = ozet[ozet['durum'] == 'yavaş']
-    if not yavas.empty:
-        r = yavas.loc[yavas['oran'].idxmax()]
-        satirlar.append(f"🎯 <b>Odak:</b> {senaryo_adi(r)} — {sure_str(r['test_ort'])} vs "
-                        f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} yavaş)")
-    else:
-        satirlar.append(f"🎯 <b>Odak:</b> {m['test_kisa']} geride kaldığı senaryo yok; mevcut performans korunmalı.")
-
-    farkli_hat = ozet[[hat_farki_var(a, b) for a, b in zip(ozet['test_st'], ozet['ref_st'])]]
-    if not farkli_hat.empty:
-        satirlar.append(f"⚠️ <b>{len(farkli_hat)}/{toplam} senaryoda Speed Test farkı &gt;{SPEED_TEST_UYARI_ORANI}x</b> "
-                        f"— bu kıyaslar ihtiyatla okunmalı (detay: kırılım tablosu).")
-    else:
-        satirlar.append("✅ Karşılaştırılan testler benzer hat hızlarında yapılmıştır.")
-
-    esit_notu = f" ({esit} senaryoda eşit)" if esit else ""
-    maddeler = "".join(f"<li>{s}</li>" for s in satirlar)
-    st.markdown(f"""
-    <div style="background-color:#F9FCFE; border:1px solid #E2E8F0; border-radius:16px; padding:18px 24px; margin:8px 0 16px 0; font-family:Arial, sans-serif; color:#233545;">
-        <div style="color:#0D65A1; font-size:21px; font-weight:700; margin-bottom:6px;">Yönetici Özeti | {m['baslik']}</div>
-        <div style="font-size:17px; margin-bottom:10px;">{m['test_kisa']} <b>{kazanc}/{toplam}</b> senaryoda {m['ref_ablatif']} daha hızlı{esit_notu}.</div>
-        <ul style="font-size:14.5px; line-height:1.75; margin:0 0 6px 18px; padding:0;">{maddeler}</ul>
-        <div style="font-size:12px; color:#64748B;">Kapsam: {kapsam} · Senaryo = medya × platform × şebeke × işlem · x / %: ortalama süre farkı</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# =========================================================================
-# KIRILIM: ISI HARİTASI + TABLO
-# =========================================================================
-def kirilim_ciz(ozet, mod, key):
-    m = MODLAR[mod]
-    if ozet.empty:
-        return
-    st.subheader("🧩 Kırılım — Medya × İşlem × Platform × Şebeke")
-
-    d = ozet.copy()
-    d['Satır'] = d['Medya Türü'] + " · " + d['İşlem Türü']
-    d['Sütun'] = d['Platform'] + " · " + d['Şebeke']
-    satir_sirasi = [f"{md} · {i}" for i in ISLEM_SIRASI for md in MEDYA_SIRASI if f"{md} · {i}" in set(d['Satır'])]
-    sutun_sirasi = [f"{p} · {s}" for p in PLATFORM_SIRASI for s in SEBEKE_SIRASI if f"{p} · {s}" in set(d['Sütun'])]
-    z = d.pivot(index='Satır', columns='Sütun', values='fark_pct').reindex(index=satir_sirasi, columns=sutun_sirasi)
-    metin = z.map(lambda v: "" if pd.isna(v) else f"{v:+.0f}%") if hasattr(z, "map") else \
-        z.applymap(lambda v: "" if pd.isna(v) else f"{v:+.0f}%")
-
-    fig = px.imshow(z, color_continuous_scale="RdYlGn_r", zmin=-100, zmax=100, aspect="auto",
-                    labels=dict(color="Fark %"))
-    fig.update_traces(text=metin.values, texttemplate="%{text}",
-                      hovertemplate="%{y}<br>%{x}<br>Fark: %{z:+.1f}%<extra></extra>")
-    fig.update_layout(height=60 + 42 * len(satir_sirasi), margin=dict(l=10, r=10, t=10, b=10),
-                      xaxis_title="", yaxis_title="", font=dict(family='Arial, sans-serif', size=12, color=KOYU),
-                      xaxis=dict(side='top'))
-    st.plotly_chart(fig, use_container_width=True, key=f"heat_{key}")
-    st.caption(f"Fark % = ({m['test_kisa']} − {m['ref_kisa']}) / {m['ref_kisa']} ortalama süre. "
-               f"🟩 negatif: {m['test_kisa']} daha hızlı · 🟥 pozitif: {m['test_kisa']} daha yavaş (renk ±%100'de doyar).")
-
-    with st.expander("📋 Kırılım tablosu (ortalama süre + Speed Test)"):
-        tablo = pd.DataFrame({
-            'Medya Türü': d['Medya Türü'], 'Platform': d['Platform'], 'Şebeke': d['Şebeke'],
-            'İşlem': d['İşlem Türü'],
-            f"{m['test_kisa']}": d['test_grup'],
-            f"{m['test_kisa']} Ort. (sn)": d['test_ort'].round(2),
-            f"{m['test_kisa']} Speed Test (Mbps)": d['test_st'],
-            f"{m['ref_kisa']}": d['ref_grup'],
-            f"{m['ref_kisa']} Ort. (sn)": d['ref_ort'].round(2),
-            f"{m['ref_kisa']} Speed Test (Mbps)": d['ref_st'],
-            'Fark %': d['fark_pct'].round(1),
-            'Sonuç': d['durum'].map({'hızlı': f"✅ {m['test_kisa']} hızlı", 'yavaş': f"❌ {m['test_kisa']} yavaş",
-                                     'eşit': "➖ Eşit"}),
-            'Hat Farkı': ["⚠️" if hat_farki_var(a, b) else "" for a, b in zip(d['test_st'], d['ref_st'])],
-        })
-        tablo['_m'] = tablo['Medya Türü'].map(MEDYA_SIRASI.index)
-        tablo = tablo.sort_values(['Şebeke', 'Platform', 'İşlem', '_m']).drop(columns='_m')
-        st.dataframe(tablo, use_container_width=True, hide_index=True,
-                     column_config={'Fark %': st.column_config.NumberColumn(format="%+.1f%%")})
-
-
-# =========================================================================
-# DETAY: SEÇİLİ MEDYA — ORTALAMA SÜRE + SPEED TEST KARTLARI VE GRAFİKLER
+# ORTALAMA SÜRE + SPEED TEST KARTLARI VE GRAFİKLER (ŞEBEKE BAZLI)
 # =========================================================================
 def kpi_kart(baslik, sure, speed, renk, uyari=False):
     st_renk = "#B45309" if uyari else "#334155"
@@ -406,43 +275,38 @@ def kpi_kart(baslik, sure, speed, renk, uyari=False):
     )
 
 
-def senaryo_df(df, platform_adi, sebeke_adi, islem_adi):
-    return df[(df['Platform'] == platform_adi) & (df['Şebeke'] == sebeke_adi) & (df['İşlem Türü'] == islem_adi)]
-
-
-def tek_grafik_ciz(container, df, t, platform_adi, sebeke_adi, islem_adi, grafik_key):
-    sub_df = senaryo_df(df, platform_adi, sebeke_adi, islem_adi).copy()
+def tek_grafik_ciz(container, df, sebeke_adi, islem_adi, grafik_key):
+    sub_df = df[(df['Şebeke'] == sebeke_adi) & (df['İşlem Türü'] == islem_adi)].copy()
     if sub_df.empty:
         return
 
     with container:
-        baslik_renk = "#10B5B1" if platform_adi == "iOS" else RENK_BIP
         st.markdown(
-            f"<h4 style='color:{baslik_renk}; margin-bottom:6px; font-family:Arial,sans-serif;'>"
-            f"{platform_adi} · {sebeke_adi} {islem_adi}</h4>",
+            f"<h4 style='color:{RENK_BIP}; margin-bottom:6px; font-family:Arial,sans-serif;'>"
+            f"{SEBEKE_IKON[sebeke_adi]} {sebeke_adi} · {islem_adi}</h4>",
             unsafe_allow_html=True
         )
 
         # --- ORTALAMA SÜRE + SPEED TEST KARTLARI ---
         degerler = {}
-        for grup in t['sira']:
+        for grup in k['sira']:
             g = sub_df[sub_df['Grup'] == grup]
             sp = g['Speed Test (Mbps)'].dropna()
             degerler[grup] = (g['Süre'].mean() if not g.empty else None, sp.iloc[0] if not sp.empty else None)
-        (test_ort, test_st), (ref_ort, ref_st) = degerler[t['test']], degerler[t['ref']]
+        (test_ort, test_st), (ref_ort, ref_st) = degerler[k['test']], degerler[k['ref']]
         uyari = hat_farki_var(test_st, ref_st)
 
         kolonlar = st.columns([2, 2, 1.2])
-        for kol, grup in zip(kolonlar[:2], t['sira']):
+        for kol, grup in zip(kolonlar[:2], k['sira']):
             ort, sp = degerler[grup]
             kol.markdown(kpi_kart(f"{grup} · Ort. {islem_adi}", sure_str(ort) if ort is not None else "-",
-                                  st_str(sp), t['renk'][grup], uyari), unsafe_allow_html=True)
+                                  st_str(sp), k['renk'][grup], uyari), unsafe_allow_html=True)
         if test_ort is not None and ref_ort:
             fark = (test_ort - ref_ort) / ref_ort * 100
             renk = "#6B7280" if abs(fark) < ESIT_ESIGI_YUZDE else ("#1E8E3E" if fark < 0 else "#C0392B")
             kolonlar[2].markdown(
                 f"<div style='background:#F9FCFE; border-radius:8px; padding:8px 10px; text-align:center; "
-                f"font-family:Arial,sans-serif;'><div style='font-size:12px; color:#64748B;'>Fark ({t['test'].replace('BiP ', '')})</div>"
+                f"font-family:Arial,sans-serif;'><div style='font-size:12px; color:#64748B;'>Fark ({k['test']})</div>"
                 f"<div style='font-size:22px; font-weight:700; color:{renk}; line-height:1.3;'>{fark:+.0f}%</div>"
                 f"<div style='font-size:12px; color:#B45309;'>{'⚠️ hat farkı' if uyari else '&nbsp;'}</div></div>",
                 unsafe_allow_html=True)
@@ -455,8 +319,8 @@ def tek_grafik_ciz(container, df, t, platform_adi, sebeke_adi, islem_adi, grafik
         fig = px.bar(
             sub_df, x='Grafik Etiketi', y='Süre', color='Grup', barmode='group', text='Süre',
             hover_data=['Speed Test (Mbps)'],
-            category_orders={"Grup": t['sira'], 'Grafik Etiketi': kategori_sralama},
-            color_discrete_map=t['renk'],
+            category_orders={"Grup": k['sira'], 'Grafik Etiketi': kategori_sralama},
+            color_discrete_map=k['renk'],
             labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', 'Grafik Etiketi': 'Koşum Sırası'}
         )
         fig.update_traces(
@@ -482,47 +346,80 @@ def tek_grafik_ciz(container, df, t, platform_adi, sebeke_adi, islem_adi, grafik
         st.plotly_chart(fig, use_container_width=True, key=grafik_key)
 
 
-def detay_ciz(mod_df, tanim, mod):
-    tur_df = mod_df[mod_df['Medya Türü'] == secilen_tur]
-    st.subheader(f"🔍 {secilen_tur} — Ortalama Süreler, Speed Test ve Koşum Grafikleri")
-    for sebeke in SEBEKE_SIRASI:
-        platformlar = [p for p in PLATFORM_SIRASI if p in tanim
-                       and not tur_df[(tur_df['Platform'] == p) & (tur_df['Şebeke'] == sebeke)].empty]
-        if not platformlar:
-            continue
-        st.markdown(f"### {SEBEKE_IKON[sebeke]} {sebeke}")
-        for plat in platformlar:
-            c1, c2 = st.columns(2, gap="large")
-            for kol, islem in zip((c1, c2), ISLEM_SIRASI):
-                tek_grafik_ciz(kol, tur_df, tanim[plat], plat, sebeke, islem, f"chart_{mod}_{plat}_{sebeke}_{islem}")
-        st.markdown("---")
+st.markdown("---")
+st.subheader(f"{k['ad']} · {secilen_tur}")
+tur_df = kiyas_df[kiyas_df['Medya Türü'] == secilen_tur]
+for sebeke in SEBEKE_SIRASI:
+    if tur_df[tur_df['Şebeke'] == sebeke].empty:
+        continue
+    c1, c2 = st.columns(2, gap="large")
+    for kol, islem in zip((c1, c2), ISLEM_SIRASI):
+        tek_grafik_ciz(kol, tur_df, sebeke, islem, f"chart_{sebeke}_{islem}")
+    st.markdown("---")
 
-    if not tur_df.empty:
-        with st.expander(f"📊 {secilen_tur} — Tüm Koşum Verisi"):
-            tablo_df = tur_df[['Platform', 'Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre',
-                               'Speed Test (Mbps)', 'Kaynak Dosya']].rename(columns={'Süre': 'Süre (sn)'})
-            st.dataframe(tablo_df, use_container_width=True, hide_index=True)
+if not tur_df.empty:
+    with st.expander(f"📊 {secilen_tur} — Tüm Koşum Verisi"):
+        tablo_df = tur_df[['Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre',
+                           'Speed Test (Mbps)', 'Kaynak Dosya']].rename(columns={'Süre': 'Süre (sn)'})
+        st.dataframe(tablo_df, use_container_width=True, hide_index=True)
 
 
 # =========================================================================
-# SEKMELER
+# YÖNETİCİ ÖZETİ (SAYFANIN ALTINDA — KISA, ÖZ, NET)
 # =========================================================================
-sekmeler = st.tabs([MODLAR[m]['sekme'] for m in MODLAR])
-for sekme, mod in zip(sekmeler, MODLAR):
-    with sekme:
-        tanim = karsilastirma_tanimla(mod)
-        if not tanim:
-            st.warning("Bu karşılaştırma için gerekli klasörler bulunamadı "
-                       "(BiP vs WhatsApp: Bip_<platform>_<sürüm> + Whatsapp_<platform>; "
-                       "sürüm karşılaştırması: platform başına en az iki Bip_<platform>_<sürüm> klasörü).")
-            continue
-        gruplar = {g for t in tanim.values() for g in (t['test'], t['ref'])}
-        mod_df = full_df[full_df['Grup'].isin(gruplar) & full_df['Platform'].isin(tanim.keys())]
-        # Grup adı platformlar arasında paylaşılabileceğinden (ör. WhatsApp) platform bazında da filtrele
-        mod_df = mod_df[[g in (tanim[p]['test'], tanim[p]['ref']) for g, p in zip(mod_df['Grup'], mod_df['Platform'])]]
+def yonetici_ozeti_ciz(ozet):
+    if ozet.empty:
+        st.info("Yönetici özeti için karşılaştırılabilir senaryo yok.")
+        return
 
-        ozet = senaryo_tablosu(mod_df, tanim)
-        yonetici_ozeti_ciz(ozet, mod, tanim)
-        kirilim_ciz(ozet, mod, mod)
-        st.markdown("---")
-        detay_ciz(mod_df, tanim, mod)
+    toplam = len(ozet)
+    kazanc = int((ozet['durum'] == 'hızlı').sum())
+    esit = int((ozet['durum'] == 'eşit').sum())
+
+    def sebeke_satiri(seb):
+        s = ozet[ozet['Şebeke'] == seb]
+        parcalar = []
+        for islem in ISLEM_SIRASI:
+            si = s[s['İşlem Türü'] == islem]
+            if not si.empty:
+                parcalar.append(f"{islem} <b>{(si['durum'] == 'hızlı').sum()}/{len(si)}</b>")
+        return f"{SEBEKE_IKON[seb]} <b>{seb}:</b> " + " · ".join(parcalar)
+
+    def senaryo_adi(r):
+        return f"{r['Şebeke']} {r['Medya Türü']} {r['İşlem Türü']}"
+
+    satirlar = [sebeke_satiri(seb) for seb in SEBEKE_SIRASI if (ozet['Şebeke'] == seb).any()]
+
+    hizli = ozet[ozet['durum'] == 'hızlı']
+    if not hizli.empty:
+        r = hizli.loc[hizli['oran'].idxmax()]
+        satirlar.append(f"🏆 <b>En büyük kazanım:</b> {senaryo_adi(r)} — {sure_str(r['test_ort'])} vs "
+                        f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} hızlı)")
+    yavas = ozet[ozet['durum'] == 'yavaş']
+    if not yavas.empty:
+        r = yavas.loc[yavas['oran'].idxmax()]
+        satirlar.append(f"🎯 <b>Odak:</b> {senaryo_adi(r)} — {sure_str(r['test_ort'])} vs "
+                        f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} yavaş)")
+    else:
+        satirlar.append(f"🎯 <b>Odak:</b> {k['test_kisa']} geride kaldığı senaryo yok; mevcut performans korunmalı.")
+
+    farkli_hat = ozet[[hat_farki_var(a, b) for a, b in zip(ozet['test_st'], ozet['ref_st'])]]
+    if not farkli_hat.empty:
+        satirlar.append(f"⚠️ <b>{len(farkli_hat)}/{toplam} senaryoda Speed Test farkı &gt;{SPEED_TEST_UYARI_ORANI}x</b> "
+                        f"— bu kıyaslar ihtiyatla okunmalı.")
+    else:
+        satirlar.append("✅ Karşılaştırılan testler benzer hat hızlarında yapılmıştır.")
+
+    esit_notu = f" ({esit} senaryoda eşit)" if esit else ""
+    maddeler = "".join(f"<li>{s}</li>" for s in satirlar)
+    st.markdown(f"""
+    <div style="background-color:#F9FCFE; border:1px solid #E2E8F0; border-radius:16px; padding:18px 24px; margin:8px 0 16px 0; font-family:Arial, sans-serif; color:#233545;">
+        <div style="color:#0D65A1; font-size:21px; font-weight:700; margin-bottom:6px;">Yönetici Özeti | {k['ad']}</div>
+        <div style="font-size:17px; margin-bottom:10px;">{k['test_kisa']} <b>{kazanc}/{toplam}</b> senaryoda {k['ref_ablatif']} daha hızlı{esit_notu}.</div>
+        <ul style="font-size:14.5px; line-height:1.75; margin:0 0 6px 18px; padding:0;">{maddeler}</ul>
+        <div style="font-size:12px; color:#64748B;">Tüm medya türleri dahil · Senaryo = medya × şebeke × işlem · x / %: ortalama süre farkı</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+yonetici_ozeti_ciz(senaryo_tablosu(kiyas_df, k))

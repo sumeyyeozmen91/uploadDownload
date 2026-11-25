@@ -10,14 +10,19 @@ Bip_iOS_5.7.36 klasöründe Bip iOS dosyalar var
 Whatsapp_Android klasöründe Whatsapp Android dosyalar var
 Whatsapp_iOS klasöründe Whatsapp iOS dosyalar var
 
+
 ÖNEMLİ: 
-Bip_Android_5.6.19 ile Whatsapp_Android karşılaştır.
-Bip_iOS_5.6.41 ile Whatsapp_iOS karşılaştır.
+Bip_Android_5.6.19 ile Whatsapp_Android için dropdown yap seçebileyim. Bu alanda Bip_Android_5.6.19 ile Whatsapp_Android karşılaştır. 
 
-Kırılım yap 
 
-Bip_Android_5.6.19 ile Bip_Android_5.7.25 karşılaştır
-Bip_iOS_5.6.41 ile Bip_iOS_5.7.36 karşılaştır.
+Bip_iOS_5.6.41 ile Whatsapp_iOS için dropdown yap seçebileyim. Bu alanda Bip_iOS_5.6.41 ile Whatsapp_iOS karşılaştır.
+
+
+Bip_Android_5.6.19 ile Bip_Android_5.7.25 için dropdown yap seçebileyim. Bu alanda Bip_Android_5.6.19 ile Bip_Android_5.7.25 karşılaştır.
+
+
+Bip_iOS_5.6.41 ile Bip_iOS_5.7.36 için dropdown yap seçebileyim. Bu alanda Bip_iOS_5.6.41 ile Bip_iOS_5.7.36 karşılaştır.
+
 
 
 
@@ -25,7 +30,7 @@ Lte ve wifi şebekelerinde dosyalar var dikkat et şebekeye
 Ayrıca Speed Test bilgilerini de streamlit'te yukarıda ortalama sürelerin oldugu yere ekle 
 buna göre streamlit'i olustur
 
-Ayrıca yönetici özeti kısa öz net olsun
+Ayrıca yönetici özeti her sayfanın altında kısa öz net olsun
 
 
 

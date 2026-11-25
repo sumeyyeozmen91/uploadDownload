@@ -386,7 +386,7 @@ def yonetici_ozeti_ciz(ozet):
         return f"{SEBEKE_IKON[seb]} <b>{seb}:</b> " + " · ".join(parcalar)
 
     def senaryo_adi(r):
-        return f"{r['Şebeke']} {r['Medya Türü']} {r['İşlem Türü']}"
+        return f"{r['Şebeke']} {r['İşlem Türü']}"
 
     satirlar = [sebeke_satiri(seb) for seb in SEBEKE_SIRASI if (ozet['Şebeke'] == seb).any()]
 
@@ -414,12 +414,12 @@ def yonetici_ozeti_ciz(ozet):
     maddeler = "".join(f"<li>{s}</li>" for s in satirlar)
     st.markdown(f"""
     <div style="background-color:#F9FCFE; border:1px solid #E2E8F0; border-radius:16px; padding:18px 24px; margin:8px 0 16px 0; font-family:Arial, sans-serif; color:#233545;">
-        <div style="color:#0D65A1; font-size:21px; font-weight:700; margin-bottom:6px;">Yönetici Özeti | {k['ad']}</div>
+        <div style="color:#0D65A1; font-size:21px; font-weight:700; margin-bottom:6px;">Yönetici Özeti | {k['ad']} · {secilen_tur}</div>
         <div style="font-size:17px; margin-bottom:10px;">{k['test_kisa']} <b>{kazanc}/{toplam}</b> senaryoda {k['ref_ablatif']} daha hızlı{esit_notu}.</div>
         <ul style="font-size:14.5px; line-height:1.75; margin:0 0 6px 18px; padding:0;">{maddeler}</ul>
-        <div style="font-size:12px; color:#64748B;">Tüm medya türleri dahil · Senaryo = medya × şebeke × işlem · x / %: ortalama süre farkı</div>
+        <div style="font-size:12px; color:#64748B;">Senaryo = şebeke × işlem ({secilen_tur}) · x / %: ortalama süre farkı</div>
     </div>
     """, unsafe_allow_html=True)
 
 
-yonetici_ozeti_ciz(senaryo_tablosu(kiyas_df, k))
+yonetici_ozeti_ciz(senaryo_tablosu(tur_df, k))

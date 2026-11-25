@@ -13,12 +13,17 @@ st.set_page_config(page_title="BiP Upload/Download Performans Paneli", layout="w
 # =========================================================================
 # Klasörler: Bip_Android_<sürüm>, Bip_iOS_<sürüm>, Whatsapp_Android, Whatsapp_iOS
 # Dosya adı kalıbı: <MEDYA>[_Wa][_iOS]_<Upload|Download>_<Lte|Wifi>.xlsx
-#   (ör. HD_2DkVideo_Wa_iOS_Upload_Lte.xlsx; bazı adlarda uzantıdan önce boşluk olabilir)
+#   (ör. HD_2DkVideo_Wa_iOS_Upload_Lte.xlsx, 90MB_PDF_Wa_Download_Lte.xlsx;
+#    bazı adlarda uzantıdan önce boşluk olabilir, uygulama bilgisi klasör adından alınır)
+# Medya türü listesi her karşılaştırmada o platformda bulunan dosyalardan oluşur;
+# iOS klasörlerinde PDF/XLSX dosyası olmadığı için iOS karşılaştırmalarında bu türler çıkmaz.
 MEDYA_TURU_ISIMLERI = {
     "sd_photo": "SD Fotoğraf",
     "hd_photo": "HD Fotoğraf",
     "sd_2dkvideo": "SD 2dk Video",
     "hd_2dkvideo": "HD 2dk Video",
+    "90mb_pdf": "PDF (90 MB)",      # yalnızca Android klasörlerinde var
+    "90mb_xlsx": "XLSX (90 MB)",    # yalnızca Android klasörlerinde var
 }
 MEDYA_SIRASI = list(MEDYA_TURU_ISIMLERI.values())
 SEBEKE_ISIMLERI = {"lte": "LTE", "wifi": "Wi-Fi"}
@@ -27,7 +32,6 @@ SEBEKE_IKON = {"Wi-Fi": "📶", "LTE": "📡"}
 PLATFORM_SIRASI = ["Android", "iOS"]
 ISLEM_SIRASI = ["Upload", "Download"]
 ESIT_ESIGI_YUZDE = 1.0         # |fark| bu yüzdenin altındaysa "eşit" sayılır
-SPEED_TEST_UYARI_ORANI = 1.5   # iki testin hat hızı bu kattan fazla farklıysa uyarı verilir
 
 DOSYA_DESENI = re.compile(
     r"^(?P<medya>" + "|".join(sorted(MEDYA_TURU_ISIMLERI, key=len, reverse=True)) + r")"
@@ -52,21 +56,6 @@ def _sayiya_cevir(seri):
     return pd.to_numeric(temiz, errors='coerce')
 
 
-def speed_test_oku(seri):
-    """Speed Test sütunundaki ilk geçerli değeri Mbps olarak döndürür (ör. '52.4Mbps' -> 52.4)."""
-    for deger in seri.dropna():
-        metin = str(deger).strip().lower().replace(',', '.')
-        m = re.search(r'(\d+(?:\.\d+)?)', metin)
-        if m:
-            sayi = float(m.group(1))
-            if 'gbps' in metin:
-                sayi *= 1000
-            elif 'kbps' in metin:
-                sayi /= 1000
-            return sayi
-    return None
-
-
 def surum_anahtari(surum):
     return tuple(int(p) for p in surum.split('.'))
 
@@ -83,11 +72,12 @@ def dosya_oku(dosya_yolu):
         return None, "dosya boş veya sütun eksik"
     ham.columns = [str(c).strip() for c in ham.columns]
 
-    # 1. sütun: test adı, 2. sütun: süre (sn). Speed Test yalnızca ilk satırda yazılı.
-    speed_col = next((c for c in ham.columns if "speed" in c.lower()), None)
+    # 1. sütun: test adı, 2. sütun: süre (sn). "Dosya Boyutu" sütunu yalnızca video dosyalarında var.
+    boyut_col = next((c for c in ham.columns if "boyut" in c.lower() or "size" in c.lower()), None)
     df = pd.DataFrame({
         'Test Adı': ham.iloc[:, 0],
         'Süre': _sayiya_cevir(ham.iloc[:, 1]).round(2),
+        'Boyut (MB)': _sayiya_cevir(ham[boyut_col]) if boyut_col else float('nan'),
     }).dropna(subset=['Test Adı', 'Süre'])
     if df.empty:
         return None, "geçerli süre değeri yok"
@@ -97,7 +87,6 @@ def dosya_oku(dosya_yolu):
         sira = pd.Series(range(1, len(df) + 1), index=df.index)
     df['Koşum Sırası'] = sira.astype(int)
     df['Grafik Etiketi'] = df['Koşum Sırası'].astype(str) + ". Koşum"
-    df['Speed Test (Mbps)'] = speed_test_oku(ham[speed_col]) if speed_col else None
     df['Medya Türü'] = MEDYA_TURU_ISIMLERI[eslesme.group('medya')]
     df['İşlem Türü'] = "Upload" if eslesme.group('islem') == "upload" else "Download"
     df['Şebeke'] = SEBEKE_ISIMLERI[eslesme.group('sebeke')]
@@ -190,10 +179,8 @@ if not karsilastirmalar:
 
 
 def senaryo_tablosu(df, k):
-    """Medya × Şebeke × İşlem bazında test/ref ortalamaları, Speed Test ve farkları."""
-    g = df.groupby(['Medya Türü', 'Şebeke', 'İşlem Türü', 'Grup']).agg(
-        ort=('Süre', 'mean'), st=('Speed Test (Mbps)', 'first')
-    ).reset_index()
+    """Medya × Şebeke × İşlem bazında test/ref ortalamaları ve farkları."""
+    g = df.groupby(['Medya Türü', 'Şebeke', 'İşlem Türü', 'Grup']).agg(ort=('Süre', 'mean')).reset_index()
     satirlar = []
     for (medya, seb, islem), grp in g.groupby(['Medya Türü', 'Şebeke', 'İşlem Türü']):
         test = grp[grp['Grup'] == k['test']]
@@ -206,7 +193,7 @@ def senaryo_tablosu(df, k):
         kucuk = min(tt['ort'], rr['ort'])
         satirlar.append({
             'Medya Türü': medya, 'Şebeke': seb, 'İşlem Türü': islem,
-            'test_ort': tt['ort'], 'ref_ort': rr['ort'], 'test_st': tt['st'], 'ref_st': rr['st'],
+            'test_ort': tt['ort'], 'ref_ort': rr['ort'],
             'fark_pct': fark, 'durum': durum,
             'oran': (max(tt['ort'], rr['ort']) / kucuk - 1) * 100 if kucuk > 0 else 0.0,
         })
@@ -220,16 +207,6 @@ def fark_str(oran):
 
 def sure_str(sn):
     return f"{sn:.2f} sn" if sn < 10 else f"{sn:.1f} sn"
-
-
-def st_str(mbps):
-    return f"{mbps:.1f} Mbps" if mbps is not None and pd.notna(mbps) else "-"
-
-
-def hat_farki_var(test_st, ref_st):
-    if test_st is None or ref_st is None or pd.isna(test_st) or pd.isna(ref_st) or min(test_st, ref_st) <= 0:
-        return False
-    return max(test_st, ref_st) / min(test_st, ref_st) > SPEED_TEST_UYARI_ORANI
 
 
 # =========================================================================
@@ -258,20 +235,18 @@ else:
         "🍎 **iOS Test Cihazları** · 📤 Upload: `iPhone 16 Pro Max` (`05396340104`) · "
         "📥 Download: `iPhone 15 Pro Max` (`05396341373`)"
     )
-st.caption("Süre: saniye (sn) · Speed Test: ilgili testin başında ölçülen hat hızı (Mbps) · Her senaryo 10 koşum")
+st.caption("Süre: saniye (sn) · Her senaryo 10 koşum")
 
 
 # =========================================================================
-# ORTALAMA SÜRE + SPEED TEST KARTLARI VE GRAFİKLER (ŞEBEKE BAZLI)
+# ORTALAMA SÜRE (+ VARSA DOSYA BOYUTU) KARTLARI VE GRAFİKLER (ŞEBEKE BAZLI)
 # =========================================================================
-def kpi_kart(baslik, sure, speed, renk, uyari=False):
-    st_renk = "#B45309" if uyari else "#334155"
+def kpi_kart(baslik, sure, renk):
     return (
         f"<div style='border-left:5px solid {renk}; background:#F9FCFE; border-radius:8px; "
         f"padding:8px 12px; font-family:Arial,sans-serif;'>"
         f"<div style='font-size:12px; color:#64748B;'>{baslik}</div>"
-        f"<div style='font-size:22px; font-weight:700; color:{KOYU}; line-height:1.3;'>{sure}</div>"
-        f"<div style='font-size:12.5px; color:{st_renk};'>⚡ Speed Test: <b>{speed}</b></div></div>"
+        f"<div style='font-size:22px; font-weight:700; color:{KOYU}; line-height:1.3;'>{sure}</div></div>"
     )
 
 
@@ -287,28 +262,25 @@ def tek_grafik_ciz(container, df, sebeke_adi, islem_adi, grafik_key):
             unsafe_allow_html=True
         )
 
-        # --- ORTALAMA SÜRE + SPEED TEST KARTLARI ---
-        degerler = {}
+        # --- ORTALAMA SÜRE KARTLARI ---
+        ortalamalar = {}
         for grup in k['sira']:
             g = sub_df[sub_df['Grup'] == grup]
-            sp = g['Speed Test (Mbps)'].dropna()
-            degerler[grup] = (g['Süre'].mean() if not g.empty else None, sp.iloc[0] if not sp.empty else None)
-        (test_ort, test_st), (ref_ort, ref_st) = degerler[k['test']], degerler[k['ref']]
-        uyari = hat_farki_var(test_st, ref_st)
+            ortalamalar[grup] = g['Süre'].mean() if not g.empty else None
+        test_ort, ref_ort = ortalamalar[k['test']], ortalamalar[k['ref']]
 
         kolonlar = st.columns([2, 2, 1.2])
         for kol, grup in zip(kolonlar[:2], k['sira']):
-            ort, sp = degerler[grup]
+            ort = ortalamalar[grup]
             kol.markdown(kpi_kart(f"{grup} · Ort. {islem_adi}", sure_str(ort) if ort is not None else "-",
-                                  st_str(sp), k['renk'][grup], uyari), unsafe_allow_html=True)
+                                  k['renk'][grup]), unsafe_allow_html=True)
         if test_ort is not None and ref_ort:
             fark = (test_ort - ref_ort) / ref_ort * 100
             renk = "#6B7280" if abs(fark) < ESIT_ESIGI_YUZDE else ("#1E8E3E" if fark < 0 else "#C0392B")
             kolonlar[2].markdown(
                 f"<div style='background:#F9FCFE; border-radius:8px; padding:8px 10px; text-align:center; "
                 f"font-family:Arial,sans-serif;'><div style='font-size:12px; color:#64748B;'>Fark ({k['test']})</div>"
-                f"<div style='font-size:22px; font-weight:700; color:{renk}; line-height:1.3;'>{fark:+.0f}%</div>"
-                f"<div style='font-size:12px; color:#B45309;'>{'⚠️ hat farkı' if uyari else '&nbsp;'}</div></div>",
+                f"<div style='font-size:22px; font-weight:700; color:{renk}; line-height:1.3;'>{fark:+.0f}%</div></div>",
                 unsafe_allow_html=True)
 
         # --- GRAFİK ---
@@ -318,7 +290,7 @@ def tek_grafik_ciz(container, df, sebeke_adi, islem_adi, grafik_key):
 
         fig = px.bar(
             sub_df, x='Grafik Etiketi', y='Süre', color='Grup', barmode='group', text='Süre',
-            hover_data=['Speed Test (Mbps)'],
+            hover_data=['Boyut (MB)'] if sub_df['Boyut (MB)'].notna().any() else None,
             category_orders={"Grup": k['sira'], 'Grafik Etiketi': kategori_sralama},
             color_discrete_map=k['renk'],
             labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', 'Grafik Etiketi': 'Koşum Sırası'}
@@ -360,7 +332,7 @@ for sebeke in SEBEKE_SIRASI:
 if not tur_df.empty:
     with st.expander(f"📊 {secilen_tur} — Tüm Koşum Verisi"):
         tablo_df = tur_df[['Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre',
-                           'Speed Test (Mbps)', 'Kaynak Dosya']].rename(columns={'Süre': 'Süre (sn)'})
+                           'Kaynak Dosya']].rename(columns={'Süre': 'Süre (sn)'})
         st.dataframe(tablo_df, use_container_width=True, hide_index=True)
 
 
@@ -402,13 +374,6 @@ def yonetici_ozeti_ciz(ozet):
                         f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} yavaş)")
     else:
         satirlar.append(f"🎯 <b>Odak:</b> {k['test_kisa']} geride kaldığı senaryo yok; mevcut performans korunmalı.")
-
-    farkli_hat = ozet[[hat_farki_var(a, b) for a, b in zip(ozet['test_st'], ozet['ref_st'])]]
-    if not farkli_hat.empty:
-        satirlar.append(f"⚠️ <b>{len(farkli_hat)}/{toplam} senaryoda Speed Test farkı &gt;{SPEED_TEST_UYARI_ORANI}x</b> "
-                        f"— bu kıyaslar ihtiyatla okunmalı.")
-    else:
-        satirlar.append("✅ Karşılaştırılan testler benzer hat hızlarında yapılmıştır.")
 
     esit_notu = f" ({esit} senaryoda eşit)" if esit else ""
     maddeler = "".join(f"<li>{s}</li>" for s in satirlar)

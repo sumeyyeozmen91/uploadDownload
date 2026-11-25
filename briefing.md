@@ -27,7 +27,8 @@ Bip_iOS_5.6.41 ile Bip_iOS_5.7.36 için dropdown yap seçebileyim. Bu alanda Bip
 
 
 Lte ve wifi şebekelerinde dosyalar var dikkat et şebekeye
-Ayrıca Speed Test bilgilerini de streamlit'te yukarıda ortalama sürelerin oldugu yere ekle 
+Dosya boyutu olanların dosya boyutunu da ekle
+Ayrıca Speed Test bilgilerini de streamlit'te yukarıda ortalama sürelerin oldugu yere EKLEME 
 buna göre streamlit'i olustur
 
 Ayrıca yönetici özeti her sayfanın altında kısa öz net olsun

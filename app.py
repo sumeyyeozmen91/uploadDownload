@@ -94,8 +94,12 @@ def dosya_oku(dosya_yolu):
 
 
 @st.cache_data(show_spinner=False)
-def veri_yukle(kok, _imza):
-    """Kök dizindeki Bip_* / Whatsapp_* klasörlerini okur. _imza: dosya değişince önbelleği yeniler."""
+def veri_yukle(kok, imza, okuma_surumu):
+    """Kök dizindeki Bip_* / Whatsapp_* klasörlerini okur.
+    imza: dosya listesi + değişiklik zamanları; dosya eklenince/değişince önbelleği yeniler.
+    okuma_surumu: dosya_oku() çıktısı değişince artırılır (st.cache_data yalnızca bu fonksiyonun
+    kendi kodunu izler, çağırdığı dosya_oku()'yu izlemez).
+    Not: adı '_' ile başlayan parametreler önbellek anahtarına girmez; bu yüzden '_' kullanılmaz."""
     parcalar, atlananlar = [], []
     for klasor in sorted(os.listdir(kok)):
         tam_yol = os.path.join(kok, klasor)
@@ -129,7 +133,8 @@ def veri_yukle(kok, _imza):
 
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
 imza = tuple(sorted((f, os.path.getmtime(f)) for f in glob.glob(os.path.join(script_dir, "*", "*.xlsx"))))
-full_df, atlanan_dosyalar = veri_yukle(script_dir, imza)
+OKUMA_SURUMU = 2  # dosya_oku() sütunları değişirse artır
+full_df, atlanan_dosyalar = veri_yukle(script_dir, imza, OKUMA_SURUMU)
 
 if full_df.empty:
     st.error(f"❌ '{script_dir}' altında Bip_Android_* / Bip_iOS_* / Whatsapp_* klasörlerinde geçerli Excel dosyası bulunamadı!")

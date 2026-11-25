@@ -1,43 +1,69 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import os
 import glob
+import os
 import re
 
-# Sayfa ayarları
-st.set_page_config(page_title="BiP & WhatsApp Performans Karşılaştırması", layout="wide")
+import pandas as pd
+import plotly.express as px
+import streamlit as st
 
-# --- SABİTLER ---
-# Veri klasörleri: Bip_Android_<sürüm> ve Bip_iOS_<sürüm>. Her klasörde hem BiP hem WhatsApp ("_Wa_") dosyaları,
-# her biri için hem LTE hem Wi-Fi ölçümleri bulunur. Dosya adı kalıbı:
-#   <MEDYA>[_Wa][_iOS]_<Upload|Download>_<Lte|Wifi>.xlsx   (ör. HD_2DkVideo_Wa_iOS_Upload_Lte.xlsx)
+st.set_page_config(page_title="BiP Upload/Download Performans Paneli", layout="wide")
+
+# =========================================================================
+# SABİTLER
+# =========================================================================
+# Klasörler: Bip_Android_<sürüm>, Bip_iOS_<sürüm>, Whatsapp_Android, Whatsapp_iOS
+# Dosya adı kalıbı: <MEDYA>[_Wa][_iOS]_<Upload|Download>_<Lte|Wifi>.xlsx
+#   (ör. HD_2DkVideo_Wa_iOS_Upload_Lte.xlsx; bazı adlarda uzantıdan önce boşluk olabilir)
 MEDYA_TURU_ISIMLERI = {
-    "hd_2dkvideo": "HD 2dk Video",
+    "sd_photo": "SD Fotoğraf",
     "hd_photo": "HD Fotoğraf",
     "sd_2dkvideo": "SD 2dk Video",
-    "sd_photo": "SD Fotoğraf",
-    "mp4": "MP4 Video",
-    "pdf": "PDF Belge",
-    "rar": "RAR Arşiv",
-    "txt": "TXT Metin",
-    "xlsx": "XLSX Tablo",
-    "zip": "ZIP Arşiv",
+    "hd_2dkvideo": "HD 2dk Video",
 }
-NUMBERED_PREFIXES = {"sd_photo", "sd_2dkvideo", "hd_photo", "hd_2dkvideo"}
-NUMBERED_MEDYA_TURLERI = {MEDYA_TURU_ISIMLERI[p] for p in NUMBERED_PREFIXES}
-
+MEDYA_SIRASI = list(MEDYA_TURU_ISIMLERI.values())
 SEBEKE_ISIMLERI = {"lte": "LTE", "wifi": "Wi-Fi"}
-SEBEKE_SIRASI = ["Wi-Fi", "LTE"]
+SEBEKE_SIRASI = ["LTE", "Wi-Fi"]
+SEBEKE_IKON = {"Wi-Fi": "📶", "LTE": "📡"}
 PLATFORM_SIRASI = ["Android", "iOS"]
+ISLEM_SIRASI = ["Upload", "Download"]
+ESIT_ESIGI_YUZDE = 1.0         # |fark| bu yüzdenin altındaysa "eşit" sayılır
+SPEED_TEST_UYARI_ORANI = 1.5   # iki testin hat hızı bu kattan fazla farklıysa uyarı verilir
 
 DOSYA_DESENI = re.compile(
     r"^(?P<medya>" + "|".join(sorted(MEDYA_TURU_ISIMLERI, key=len, reverse=True)) + r")"
     r"(?P<etiketler>(?:_wa|_ios)*)_(?P<islem>upload|download)_(?P<sebeke>lte|wifi)$"
 )
-KLASOR_DESENI = re.compile(r"bip_(android|ios)_([\d.]+)", re.IGNORECASE)
+KLASOR_DESENI = re.compile(
+    r"^(?P<uygulama>bip|whatsapp)_(?P<platform>android|ios)(?:_(?P<surum>\d+(?:\.\d+)*))?$",
+    re.IGNORECASE,
+)
+
+# Karşılaştırma modları. "test": değerlendirilen grup, "ref": kıyaslandığı grup.
+MODLAR = {
+    "wa": {
+        "sekme": "🆚 BiP vs WhatsApp",
+        "baslik": "BiP vs WhatsApp",
+        "test_kisa": "BiP",
+        "ref_kisa": "WhatsApp",
+        "ref_ablatif": "WhatsApp'tan",
+    },
+    "surum": {
+        "sekme": "🔄 BiP Sürüm Karşılaştırması",
+        "baslik": "BiP Eski vs Yeni Sürüm",
+        "test_kisa": "Yeni sürüm",
+        "ref_kisa": "Eski sürüm",
+        "ref_ablatif": "eski sürümden",
+    },
+}
+RENK_BIP = "#1587CB"
+RENK_BIP_ESKI = "#9DB8CF"
+RENK_WA = "#25D366"
+KOYU = "#192F47"
 
 
+# =========================================================================
+# VERİ OKUMA
+# =========================================================================
 def _sayiya_cevir(seri):
     temiz = seri.astype(str).str.replace(',', '.', regex=False).str.extract(r'(\d+(?:\.\d+)?)')[0]
     return pd.to_numeric(temiz, errors='coerce')
@@ -58,346 +84,445 @@ def speed_test_oku(seri):
     return None
 
 
-def veri_isle(file_path):
-    try:
-        base_name = os.path.splitext(os.path.basename(file_path))[0].lower().strip()
-        eslesme = DOSYA_DESENI.match(base_name)
-        if not eslesme:
-            return None
-
-        matched_prefix = eslesme.group('medya')
-        etiketler = eslesme.group('etiketler')
-        is_wa = "_wa" in etiketler
-        islem_turu = "Upload" if eslesme.group('islem') == "upload" else "Download"
-        network = SEBEKE_ISIMLERI[eslesme.group('sebeke')]
-
-        # Platform ve BiP sürümü klasör adından (Bip_Android_5.6.19 / Bip_iOS_5.6.41) okunur
-        klasor = os.path.basename(os.path.dirname(file_path))
-        klasor_eslesme = KLASOR_DESENI.search(klasor)
-        if klasor_eslesme:
-            platform = "iOS" if klasor_eslesme.group(1).lower() == "ios" else "Android"
-            bip_surum = f"V{klasor_eslesme.group(2)}"
-        else:
-            platform = "iOS" if "_ios" in etiketler else "Android"
-            bip_surum = "-"
-
-        df = pd.read_excel(file_path) if file_path.lower().endswith(('.xlsx', '.xls')) else pd.read_csv(file_path)
-        if df.empty or len(df.columns) < 2:
-            return None
-
-        df.columns = [str(c).strip() for c in df.columns]
-        df = df.rename(columns={df.columns[0]: 'Test Adı'})
-
-        # Süre her zaman 2. sütundadır (başlığı bazı Download dosyalarında da "Yükleme Süresi" yazılı);
-        # değerler saniye (sn) cinsindendir.
-        df['Süre'] = _sayiya_cevir(df[df.columns[1]]).round(2)
-
-        size_col = next((c for c in df.columns if "boyut" in c.lower() or "size" in c.lower()), None)
-        speed_col = next((c for c in df.columns if "speed" in c.lower()), None)
-
-        df['Boyut (MB)'] = _sayiya_cevir(df[size_col]).fillna(0).round(2) if size_col else 0.0
-        speed_mbps = speed_test_oku(df[speed_col]) if speed_col else None
-        df['Speed Test (Mbps)'] = speed_mbps
-
-        df = df.dropna(subset=['Süre'])
-        df = df[df['Test Adı'].notna()]
-        if df.empty:
-            return None
-
-        # --- KOŞUM SIRASI ---
-        is_numbered_media = matched_prefix in NUMBERED_PREFIXES
-        if is_numbered_media:
-            sira = df['Test Adı'].astype(str).str.extract(r'^\s*(\d+)')[0]
-            df['Koşum Sırası'] = pd.to_numeric(sira, errors='coerce')
-            if df['Koşum Sırası'].isna().any() or df['Koşum Sırası'].nunique() < len(df):
-                df['Koşum Sırası'] = range(1, len(df) + 1)
-            df['Koşum Sırası'] = df['Koşum Sırası'].astype(int)
-            df['Grafik Etiketi'] = df['Koşum Sırası'].astype(str) + ". Koşum"
-        else:
-            df['Koşum Sırası'] = 0
-            df['Grafik Etiketi'] = df['Test Adı'].astype(str)
-
-        app_name = "WhatsApp" if is_wa else "BiP"
-        df['Platform'] = platform
-        df['Uygulama'] = app_name
-        df['Versiyon'] = "Güncel" if is_wa else bip_surum
-        df['Grup'] = "WhatsApp" if is_wa else f"BiP ({bip_surum})"
-        df['Şebeke'] = network
-        df['Medya Türü'] = MEDYA_TURU_ISIMLERI[matched_prefix]
-        df['İşlem Türü'] = islem_turu
-        df['Kaynak Dosya'] = os.path.relpath(file_path, script_dir)
-
-        return df[['Test Adı', 'Koşum Sırası', 'Grafik Etiketi', 'Süre', 'Boyut (MB)', 'Speed Test (Mbps)',
-                   'Platform', 'Uygulama', 'Versiyon', 'Grup', 'Şebeke', 'Medya Türü', 'İşlem Türü', 'Kaynak Dosya']]
-    except Exception:
-        return None
+def surum_anahtari(surum):
+    return tuple(int(p) for p in surum.split('.'))
 
 
-# --- ÇALIŞMA DİZİNİ VE DOSYA TARAMA ---
+def dosya_oku(dosya_yolu):
+    """Tek bir Excel dosyasını okur; (DataFrame, None) veya (None, hata_nedeni) döndürür."""
+    ad = os.path.splitext(os.path.basename(dosya_yolu))[0].strip().lower()
+    eslesme = DOSYA_DESENI.match(ad)
+    if not eslesme:
+        return None, "dosya adı beklenen kalıba uymuyor"
+
+    ham = pd.read_excel(dosya_yolu)
+    if ham.empty or len(ham.columns) < 2:
+        return None, "dosya boş veya sütun eksik"
+    ham.columns = [str(c).strip() for c in ham.columns]
+
+    # 1. sütun: test adı, 2. sütun: süre (sn). Speed Test yalnızca ilk satırda yazılı.
+    speed_col = next((c for c in ham.columns if "speed" in c.lower()), None)
+    df = pd.DataFrame({
+        'Test Adı': ham.iloc[:, 0],
+        'Süre': _sayiya_cevir(ham.iloc[:, 1]).round(2),
+    }).dropna(subset=['Test Adı', 'Süre'])
+    if df.empty:
+        return None, "geçerli süre değeri yok"
+
+    sira = pd.to_numeric(df['Test Adı'].astype(str).str.extract(r'^\s*(\d+)')[0], errors='coerce')
+    if sira.isna().any() or sira.nunique() < len(df):
+        sira = pd.Series(range(1, len(df) + 1), index=df.index)
+    df['Koşum Sırası'] = sira.astype(int)
+    df['Grafik Etiketi'] = df['Koşum Sırası'].astype(str) + ". Koşum"
+    df['Speed Test (Mbps)'] = speed_test_oku(ham[speed_col]) if speed_col else None
+    df['Medya Türü'] = MEDYA_TURU_ISIMLERI[eslesme.group('medya')]
+    df['İşlem Türü'] = "Upload" if eslesme.group('islem') == "upload" else "Download"
+    df['Şebeke'] = SEBEKE_ISIMLERI[eslesme.group('sebeke')]
+    return df, None
+
+
+@st.cache_data(show_spinner=False)
+def veri_yukle(kok, _imza):
+    """Kök dizindeki Bip_* / Whatsapp_* klasörlerini okur. _imza: dosya değişince önbelleği yeniler."""
+    parcalar, atlananlar = [], []
+    for klasor in sorted(os.listdir(kok)):
+        tam_yol = os.path.join(kok, klasor)
+        m = KLASOR_DESENI.match(klasor)
+        if not m or not os.path.isdir(tam_yol):
+            continue
+        uygulama = "WhatsApp" if m.group('uygulama').lower() == "whatsapp" else "BiP"
+        platform = "iOS" if m.group('platform').lower() == "ios" else "Android"
+        surum = m.group('surum')
+        if uygulama == "BiP" and not surum:
+            atlananlar.append((klasor, "BiP klasör adında sürüm yok"))
+            continue
+
+        for dosya in sorted(glob.glob(os.path.join(tam_yol, "*.xlsx"))):
+            try:
+                df, hata = dosya_oku(dosya)
+            except Exception as e:  # bozuk / okunamayan dosya
+                df, hata = None, f"okunamadı: {e}"
+            if df is None:
+                atlananlar.append((os.path.relpath(dosya, kok), hata))
+                continue
+            df['Uygulama'] = uygulama
+            df['Platform'] = platform
+            df['Versiyon'] = surum if uygulama == "BiP" else "-"
+            df['Grup'] = f"BiP {surum}" if uygulama == "BiP" else "WhatsApp"
+            df['Kaynak Dosya'] = os.path.relpath(dosya, kok)
+            parcalar.append(df)
+
+    full = pd.concat(parcalar, ignore_index=True) if parcalar else pd.DataFrame()
+    return full, atlananlar
+
+
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+imza = tuple(sorted((f, os.path.getmtime(f)) for f in glob.glob(os.path.join(script_dir, "*", "*.xlsx"))))
+full_df, atlanan_dosyalar = veri_yukle(script_dir, imza)
 
-found_files = set()
-for uzanti in ("xlsx", "XLSX", "csv", "CSV"):
-    found_files.update(glob.glob(os.path.join(script_dir, "**", f"*.{uzanti}"), recursive=True))
-
-all_data = [res for res in (veri_isle(f) for f in sorted(found_files)) if res is not None]
-
-if not all_data:
-    st.error(f"❌ '{script_dir}' altında (Bip_Android_* / Bip_iOS_* klasörleri) geçerli Excel (.xlsx) veya CSV dosyası bulunamadı!")
+if full_df.empty:
+    st.error(f"❌ '{script_dir}' altında Bip_Android_* / Bip_iOS_* / Whatsapp_* klasörlerinde geçerli Excel dosyası bulunamadı!")
     st.stop()
 
-full_df = pd.concat(all_data, ignore_index=True)
+# Platform başına BiP sürümleri (küçükten büyüğe)
+bip_surumleri = {
+    p: sorted(full_df[(full_df['Uygulama'] == 'BiP') & (full_df['Platform'] == p)]['Versiyon'].unique(),
+              key=surum_anahtari)
+    for p in PLATFORM_SIRASI
+}
+wa_platformlari = set(full_df[full_df['Uygulama'] == 'WhatsApp']['Platform'].unique())
 
-# BiP sürümleri (başlık ve renkler için)
-bip_surumleri = (
-    full_df[full_df['Uygulama'] == 'BiP'].groupby('Platform')['Versiyon'].first().to_dict()
-)
-and_surum = bip_surumleri.get("Android", "-")
-ios_surum = bip_surumleri.get("iOS", "-")
 
-# --- FİLTRELER (SIDEBAR) ---
+def karsilastirma_tanimla(mod):
+    """Her platform için {'test', 'ref', 'sira', 'renk'} tanımı döndürür."""
+    tanim = {}
+    for p in PLATFORM_SIRASI:
+        surumler = bip_surumleri.get(p, [])
+        if mod == "wa":
+            # Briefing: WhatsApp, eski (ilk) BiP sürümüyle karşılaştırılır
+            if not surumler or p not in wa_platformlari:
+                continue
+            test, ref = f"BiP {surumler[0]}", "WhatsApp"
+            tanim[p] = {'test': test, 'ref': ref, 'sira': [test, ref],
+                        'renk': {test: RENK_BIP, ref: RENK_WA}}
+        else:
+            if len(surumler) < 2:
+                continue
+            ref, test = f"BiP {surumler[0]}", f"BiP {surumler[-1]}"
+            tanim[p] = {'test': test, 'ref': ref, 'sira': [ref, test],
+                        'renk': {ref: RENK_BIP_ESKI, test: RENK_BIP}}
+    return tanim
+
+
+def senaryo_tablosu(df, tanim):
+    """Medya × Platform × Şebeke × İşlem bazında test/ref ortalamaları, Speed Test ve farkları."""
+    g = df.groupby(['Medya Türü', 'Platform', 'Şebeke', 'İşlem Türü', 'Grup']).agg(
+        ort=('Süre', 'mean'), st=('Speed Test (Mbps)', 'first'), n=('Süre', 'count')
+    ).reset_index()
+    satirlar = []
+    for (medya, plat, seb, islem), grp in g.groupby(['Medya Türü', 'Platform', 'Şebeke', 'İşlem Türü']):
+        t = tanim.get(plat)
+        if not t:
+            continue
+        test = grp[grp['Grup'] == t['test']]
+        ref = grp[grp['Grup'] == t['ref']]
+        if test.empty or ref.empty:
+            continue
+        tt, rr = test.iloc[0], ref.iloc[0]
+        fark = (tt['ort'] - rr['ort']) / rr['ort'] * 100 if rr['ort'] > 0 else 0.0
+        durum = "eşit" if abs(fark) < ESIT_ESIGI_YUZDE else ("hızlı" if fark < 0 else "yavaş")
+        kucuk = min(tt['ort'], rr['ort'])
+        satirlar.append({
+            'Medya Türü': medya, 'Platform': plat, 'Şebeke': seb, 'İşlem Türü': islem,
+            'test_grup': t['test'], 'ref_grup': t['ref'],
+            'test_ort': tt['ort'], 'ref_ort': rr['ort'], 'test_st': tt['st'], 'ref_st': rr['st'],
+            'fark_pct': fark, 'durum': durum,
+            'oran': (max(tt['ort'], rr['ort']) / kucuk - 1) * 100 if kucuk > 0 else 0.0,
+        })
+    return pd.DataFrame(satirlar)
+
+
+def fark_str(oran):
+    # %100 ve üzeri farklar kat olarak gösterilir (ör. %1046 -> 11.5x)
+    return f"{oran / 100 + 1:.1f}x" if oran >= 100 else f"%{oran:.0f}"
+
+
+def sure_str(sn):
+    return f"{sn:.2f} sn" if sn < 10 else f"{sn:.1f} sn"
+
+
+def st_str(mbps):
+    return f"{mbps:.1f} Mbps" if pd.notna(mbps) else "-"
+
+
+def hat_farki_var(test_st, ref_st):
+    if pd.isna(test_st) or pd.isna(ref_st) or min(test_st, ref_st) <= 0:
+        return False
+    return max(test_st, ref_st) / min(test_st, ref_st) > SPEED_TEST_UYARI_ORANI
+
+
+# =========================================================================
+# BAŞLIK, CİHAZ BİLGİLERİ, SIDEBAR
+# =========================================================================
 st.sidebar.header("⚙️ Analiz Ayarları")
-
-tur_listesi = sorted(full_df['Medya Türü'].unique())
-varsayilan_tur_idx = tur_listesi.index("SD 2dk Video") if "SD 2dk Video" in tur_listesi else 0
-secilen_tur = st.sidebar.selectbox("Dosya / Medya Türü Seçin:", tur_listesi, index=varsayilan_tur_idx)
-
-uygulama_listesi = ["BiP", "WhatsApp"]
-secilen_uygulamalar = st.sidebar.multiselect(
-    "Grafikte Gösterilecek Uygulamalar:", uygulama_listesi, default=uygulama_listesi
+secilen_tur = st.sidebar.selectbox(
+    "Detay grafikleri için medya türü:",
+    [m for m in MEDYA_SIRASI if m in set(full_df['Medya Türü'])],
 )
+st.sidebar.markdown("**Yüklenen klasörler**")
+for (uyg, plat, ver), n in full_df.groupby(['Uygulama', 'Platform', 'Versiyon'])['Kaynak Dosya'].nunique().items():
+    st.sidebar.caption(f"{uyg} {plat}{'' if ver == '-' else ' ' + ver}: {n} dosya")
+if atlanan_dosyalar:
+    with st.sidebar.expander(f"⚠️ Atlanan {len(atlanan_dosyalar)} dosya/klasör"):
+        for ad, neden in atlanan_dosyalar:
+            st.caption(f"{ad} — {neden}")
 
-# --- BAŞLIK VE CİHAZ BİLGİLERİ ---
-st.title(f"🚀 BiP vs WhatsApp — {secilen_tur} Performans Analiz Paneli")
+and_s = " → ".join(bip_surumleri.get("Android", [])) or "-"
+ios_s = " → ".join(bip_surumleri.get("iOS", [])) or "-"
+
+st.title("🚀 BiP Fotoğraf & Video Upload / Download Performans Paneli")
 st.markdown(
-    f"**{secilen_tur}** için **Android (BiP {and_surum} & WhatsApp)** ve **iOS (BiP {ios_surum} & WhatsApp)** "
-    f"platformlarında **Wi-Fi** ve **LTE** şebekelerinde **Upload / Download** süreleri ve test anındaki **Speed Test** değerleri."
+    f"**BiP vs WhatsApp** ve **BiP sürüm** karşılaştırması · **LTE** ve **Wi-Fi** şebekeleri ayrı ayrı · "
+    f"Android BiP **{and_s}** · iOS BiP **{ios_s}**"
 )
 
 col_and_info, col_ios_info = st.columns(2)
 with col_and_info:
     st.info(
-        f"🤖 **Android Test Cihazları (BiP {and_surum} & WhatsApp)**\n"
+        "🤖 **Android Test Cihazları**\n"
         "- 📤 **Upload:** `Galaxy S21 FE 5G` (`+905316892026`)\n"
         "- 📥 **Download:** `Galaxy A51` (`+905360301821`)"
     )
 with col_ios_info:
     st.success(
-        f"🍎 **iOS Test Cihazları (BiP {ios_surum} & WhatsApp)**\n"
+        "🍎 **iOS Test Cihazları**\n"
         "- 📤 **Upload:** `iPhone 16 Pro Max` (`05396340104`)\n"
         "- 📥 **Download:** `iPhone 15 Pro Max` (`05396341373`)"
     )
+st.caption("Süre: saniye (sn) · Speed Test: ilgili testin başında ölçülen hat hızı (Mbps) · Her senaryo 10 koşum")
 
-st.caption("Süre: saniye (sn)  |  Speed Test: ilgili testin başında ölçülen hat hızı (Mbps)  |  Her senaryo 10 koşum")
-st.markdown("---")
 
-tur_df_tum = full_df[full_df['Medya Türü'] == secilen_tur].copy()
-tur_df = tur_df_tum[tur_df_tum['Uygulama'].isin(secilen_uygulamalar)].copy()
+# =========================================================================
+# YÖNETİCİ ÖZETİ (TÜM MEDYA TÜRLERİ — KISA, ÖZ, NET)
+# =========================================================================
+def yonetici_ozeti_ciz(ozet, mod, tanim):
+    m = MODLAR[mod]
+    if ozet.empty:
+        st.info("Yönetici özeti için karşılaştırılabilir senaryo yok.")
+        return
 
-color_map = {'WhatsApp': '#25D366'}
-color_map.update({g: '#1587CB' for g in full_df['Grup'].unique() if g.startswith('BiP')})
+    toplam = len(ozet)
+    kazanc = int((ozet['durum'] == 'hızlı').sum())
+    esit = int((ozet['durum'] == 'eşit').sum())
+    kapsam = " · ".join(f"{p}: {t['test']} vs {t['ref']}" for p, t in tanim.items())
+
+    def sebeke_satiri(seb):
+        s = ozet[ozet['Şebeke'] == seb]
+        parcalar = []
+        for islem in ISLEM_SIRASI:
+            si = s[s['İşlem Türü'] == islem]
+            if not si.empty:
+                parcalar.append(f"{islem} <b>{(si['durum'] == 'hızlı').sum()}/{len(si)}</b>")
+        return f"{SEBEKE_IKON[seb]} <b>{seb}:</b> " + " · ".join(parcalar)
+
+    def senaryo_adi(r):
+        return f"{r['Platform']} {r['Şebeke']} {r['Medya Türü']} {r['İşlem Türü']}"
+
+    satirlar = [sebeke_satiri(seb) for seb in SEBEKE_SIRASI if (ozet['Şebeke'] == seb).any()]
+
+    hizli = ozet[ozet['durum'] == 'hızlı']
+    if not hizli.empty:
+        r = hizli.loc[hizli['oran'].idxmax()]
+        satirlar.append(f"🏆 <b>En büyük kazanım:</b> {senaryo_adi(r)} — {sure_str(r['test_ort'])} vs "
+                        f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} hızlı)")
+    yavas = ozet[ozet['durum'] == 'yavaş']
+    if not yavas.empty:
+        r = yavas.loc[yavas['oran'].idxmax()]
+        satirlar.append(f"🎯 <b>Odak:</b> {senaryo_adi(r)} — {sure_str(r['test_ort'])} vs "
+                        f"{sure_str(r['ref_ort'])} ({fark_str(r['oran'])} yavaş)")
+    else:
+        satirlar.append(f"🎯 <b>Odak:</b> {m['test_kisa']} geride kaldığı senaryo yok; mevcut performans korunmalı.")
+
+    farkli_hat = ozet[[hat_farki_var(a, b) for a, b in zip(ozet['test_st'], ozet['ref_st'])]]
+    if not farkli_hat.empty:
+        satirlar.append(f"⚠️ <b>{len(farkli_hat)}/{toplam} senaryoda Speed Test farkı &gt;{SPEED_TEST_UYARI_ORANI}x</b> "
+                        f"— bu kıyaslar ihtiyatla okunmalı (detay: kırılım tablosu).")
+    else:
+        satirlar.append("✅ Karşılaştırılan testler benzer hat hızlarında yapılmıştır.")
+
+    esit_notu = f" ({esit} senaryoda eşit)" if esit else ""
+    maddeler = "".join(f"<li>{s}</li>" for s in satirlar)
+    st.markdown(f"""
+    <div style="background-color:#F9FCFE; border:1px solid #E2E8F0; border-radius:16px; padding:18px 24px; margin:8px 0 16px 0; font-family:Arial, sans-serif; color:#233545;">
+        <div style="color:#0D65A1; font-size:21px; font-weight:700; margin-bottom:6px;">Yönetici Özeti | {m['baslik']}</div>
+        <div style="font-size:17px; margin-bottom:10px;">{m['test_kisa']} <b>{kazanc}/{toplam}</b> senaryoda {m['ref_ablatif']} daha hızlı{esit_notu}.</div>
+        <ul style="font-size:14.5px; line-height:1.75; margin:0 0 6px 18px; padding:0;">{maddeler}</ul>
+        <div style="font-size:12px; color:#64748B;">Kapsam: {kapsam} · Senaryo = medya × platform × şebeke × işlem · x / %: ortalama süre farkı</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# =========================================================================
+# KIRILIM: ISI HARİTASI + TABLO
+# =========================================================================
+def kirilim_ciz(ozet, mod, key):
+    m = MODLAR[mod]
+    if ozet.empty:
+        return
+    st.subheader("🧩 Kırılım — Medya × İşlem × Platform × Şebeke")
+
+    d = ozet.copy()
+    d['Satır'] = d['Medya Türü'] + " · " + d['İşlem Türü']
+    d['Sütun'] = d['Platform'] + " · " + d['Şebeke']
+    satir_sirasi = [f"{md} · {i}" for i in ISLEM_SIRASI for md in MEDYA_SIRASI if f"{md} · {i}" in set(d['Satır'])]
+    sutun_sirasi = [f"{p} · {s}" for p in PLATFORM_SIRASI for s in SEBEKE_SIRASI if f"{p} · {s}" in set(d['Sütun'])]
+    z = d.pivot(index='Satır', columns='Sütun', values='fark_pct').reindex(index=satir_sirasi, columns=sutun_sirasi)
+    metin = z.map(lambda v: "" if pd.isna(v) else f"{v:+.0f}%") if hasattr(z, "map") else \
+        z.applymap(lambda v: "" if pd.isna(v) else f"{v:+.0f}%")
+
+    fig = px.imshow(z, color_continuous_scale="RdYlGn_r", zmin=-100, zmax=100, aspect="auto",
+                    labels=dict(color="Fark %"))
+    fig.update_traces(text=metin.values, texttemplate="%{text}",
+                      hovertemplate="%{y}<br>%{x}<br>Fark: %{z:+.1f}%<extra></extra>")
+    fig.update_layout(height=60 + 42 * len(satir_sirasi), margin=dict(l=10, r=10, t=10, b=10),
+                      xaxis_title="", yaxis_title="", font=dict(family='Arial, sans-serif', size=12, color=KOYU),
+                      xaxis=dict(side='top'))
+    st.plotly_chart(fig, use_container_width=True, key=f"heat_{key}")
+    st.caption(f"Fark % = ({m['test_kisa']} − {m['ref_kisa']}) / {m['ref_kisa']} ortalama süre. "
+               f"🟩 negatif: {m['test_kisa']} daha hızlı · 🟥 pozitif: {m['test_kisa']} daha yavaş (renk ±%100'de doyar).")
+
+    with st.expander("📋 Kırılım tablosu (ortalama süre + Speed Test)"):
+        tablo = pd.DataFrame({
+            'Medya Türü': d['Medya Türü'], 'Platform': d['Platform'], 'Şebeke': d['Şebeke'],
+            'İşlem': d['İşlem Türü'],
+            f"{m['test_kisa']}": d['test_grup'],
+            f"{m['test_kisa']} Ort. (sn)": d['test_ort'].round(2),
+            f"{m['test_kisa']} Speed Test (Mbps)": d['test_st'],
+            f"{m['ref_kisa']}": d['ref_grup'],
+            f"{m['ref_kisa']} Ort. (sn)": d['ref_ort'].round(2),
+            f"{m['ref_kisa']} Speed Test (Mbps)": d['ref_st'],
+            'Fark %': d['fark_pct'].round(1),
+            'Sonuç': d['durum'].map({'hızlı': f"✅ {m['test_kisa']} hızlı", 'yavaş': f"❌ {m['test_kisa']} yavaş",
+                                     'eşit': "➖ Eşit"}),
+            'Hat Farkı': ["⚠️" if hat_farki_var(a, b) else "" for a, b in zip(d['test_st'], d['ref_st'])],
+        })
+        tablo['_m'] = tablo['Medya Türü'].map(MEDYA_SIRASI.index)
+        tablo = tablo.sort_values(['Şebeke', 'Platform', 'İşlem', '_m']).drop(columns='_m')
+        st.dataframe(tablo, use_container_width=True, hide_index=True,
+                     column_config={'Fark %': st.column_config.NumberColumn(format="%+.1f%%")})
+
+
+# =========================================================================
+# DETAY: SEÇİLİ MEDYA — ORTALAMA SÜRE + SPEED TEST KARTLARI VE GRAFİKLER
+# =========================================================================
+def kpi_kart(baslik, sure, speed, renk, uyari=False):
+    st_renk = "#B45309" if uyari else "#334155"
+    return (
+        f"<div style='border-left:5px solid {renk}; background:#F9FCFE; border-radius:8px; "
+        f"padding:8px 12px; font-family:Arial,sans-serif;'>"
+        f"<div style='font-size:12px; color:#64748B;'>{baslik}</div>"
+        f"<div style='font-size:22px; font-weight:700; color:{KOYU}; line-height:1.3;'>{sure}</div>"
+        f"<div style='font-size:12.5px; color:{st_renk};'>⚡ Speed Test: <b>{speed}</b></div></div>"
+    )
 
 
 def senaryo_df(df, platform_adi, sebeke_adi, islem_adi):
-    return df[
-        (df['Platform'] == platform_adi) &
-        (df['Şebeke'] == sebeke_adi) &
-        (df['İşlem Türü'] == islem_adi)
-    ]
+    return df[(df['Platform'] == platform_adi) & (df['Şebeke'] == sebeke_adi) & (df['İşlem Türü'] == islem_adi)]
 
 
-def _ort_str(seri):
-    return f"{seri.mean():.2f} sn" if not seri.empty else "-"
-
-
-def _speed_str(seri):
-    seri = seri.dropna()
-    return f"{seri.iloc[0]:.1f} Mbps" if not seri.empty else "-"
-
-
-def tek_grafik_ciz(container, platform_adi, sebeke_adi, islem_adi, grafik_key):
-    sub_df = senaryo_df(tur_df, platform_adi, sebeke_adi, islem_adi).copy()
+def tek_grafik_ciz(container, df, t, platform_adi, sebeke_adi, islem_adi, grafik_key):
+    sub_df = senaryo_df(df, platform_adi, sebeke_adi, islem_adi).copy()
     if sub_df.empty:
         return
 
     with container:
-        baslik_renk = "#10B5B1" if platform_adi == "iOS" else "#1587CB"
+        baslik_renk = "#10B5B1" if platform_adi == "iOS" else RENK_BIP
         st.markdown(
-            f"<h4 style='color:{baslik_renk}; margin-bottom:4px; font-family:Arial,sans-serif;'>"
+            f"<h4 style='color:{baslik_renk}; margin-bottom:6px; font-family:Arial,sans-serif;'>"
             f"{platform_adi} · {sebeke_adi} {islem_adi}</h4>",
             unsafe_allow_html=True
         )
 
-        # --- ORTALAMA SÜRELER + SPEED TEST (UYGULAMA BAZLI) ---
-        bip_sub = sub_df[sub_df['Uygulama'] == 'BiP']
-        wa_sub = sub_df[sub_df['Uygulama'] == 'WhatsApp']
-        bip_surum = bip_sub['Versiyon'].iloc[0] if not bip_sub.empty else ""
+        # --- ORTALAMA SÜRE + SPEED TEST KARTLARI ---
+        degerler = {}
+        for grup in t['sira']:
+            g = sub_df[sub_df['Grup'] == grup]
+            sp = g['Speed Test (Mbps)'].dropna()
+            degerler[grup] = (g['Süre'].mean() if not g.empty else None, sp.iloc[0] if not sp.empty else None)
+        (test_ort, test_st), (ref_ort, ref_st) = degerler[t['test']], degerler[t['ref']]
+        uyari = hat_farki_var(test_st, ref_st)
 
-        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-        mcol1.metric(f"BiP {bip_surum} Ort. {islem_adi}", _ort_str(bip_sub['Süre']))
-        mcol2.metric("BiP Speed Test", _speed_str(bip_sub['Speed Test (Mbps)']))
-        mcol3.metric(f"WhatsApp Ort. {islem_adi}", _ort_str(wa_sub['Süre']))
-        mcol4.metric("WhatsApp Speed Test", _speed_str(wa_sub['Speed Test (Mbps)']))
+        kolonlar = st.columns([2, 2, 1.2])
+        for kol, grup in zip(kolonlar[:2], t['sira']):
+            ort, sp = degerler[grup]
+            kol.markdown(kpi_kart(f"{grup} · Ort. {islem_adi}", sure_str(ort) if ort is not None else "-",
+                                  st_str(sp), t['renk'][grup], uyari), unsafe_allow_html=True)
+        if test_ort is not None and ref_ort:
+            fark = (test_ort - ref_ort) / ref_ort * 100
+            renk = "#6B7280" if abs(fark) < ESIT_ESIGI_YUZDE else ("#1E8E3E" if fark < 0 else "#C0392B")
+            kolonlar[2].markdown(
+                f"<div style='background:#F9FCFE; border-radius:8px; padding:8px 10px; text-align:center; "
+                f"font-family:Arial,sans-serif;'><div style='font-size:12px; color:#64748B;'>Fark ({t['test'].replace('BiP ', '')})</div>"
+                f"<div style='font-size:22px; font-weight:700; color:{renk}; line-height:1.3;'>{fark:+.0f}%</div>"
+                f"<div style='font-size:12px; color:#B45309;'>{'⚠️ hat farkı' if uyari else '&nbsp;'}</div></div>",
+                unsafe_allow_html=True)
 
-        if secilen_tur in NUMBERED_MEDYA_TURLERI:
-            sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])
-            kategori_sralama = [f"{i}. Koşum" for i in sorted(sub_df['Koşum Sırası'].unique())]
-            x_eksen_basligi = 'Koşum Sırası'
-        else:
-            sub_df = sub_df.sort_values(by=['Boyut (MB)', 'Test Adı', 'Grup'])
-            kategori_sralama = list(dict.fromkeys(sub_df['Grafik Etiketi'].tolist()))
-            x_eksen_basligi = 'Dosya'
+        # --- GRAFİK ---
+        sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])
+        kategori_sralama = [f"{i}. Koşum" for i in sorted(sub_df['Koşum Sırası'].unique())]
+        ust_sinir = max(float(sub_df['Süre'].max()) * 1.24, 0.5)
 
-        max_y = float(sub_df['Süre'].max()) if not sub_df['Süre'].empty else 1.0
-        ust_sinir = max(max_y * 1.24, 0.5)
-
-        hover = ['Speed Test (Mbps)'] + (['Boyut (MB)'] if (sub_df['Boyut (MB)'] > 0).any() else [])
         fig = px.bar(
-            sub_df, x='Grafik Etiketi', y='Süre', color='Grup',
-            barmode='group', text='Süre',
-            hover_data=hover,
-            category_orders={"Grup": sorted(sub_df['Grup'].unique()), 'Grafik Etiketi': kategori_sralama},
-            color_discrete_map=color_map,
-            labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', 'Grafik Etiketi': x_eksen_basligi}
+            sub_df, x='Grafik Etiketi', y='Süre', color='Grup', barmode='group', text='Süre',
+            hover_data=['Speed Test (Mbps)'],
+            category_orders={"Grup": t['sira'], 'Grafik Etiketi': kategori_sralama},
+            color_discrete_map=t['renk'],
+            labels={'Süre': 'Süre (sn)', 'Grup': 'Uygulama / Sürüm', 'Grafik Etiketi': 'Koşum Sırası'}
         )
         fig.update_traces(
-            texttemplate='%{y:.2f}', textposition='outside', cliponaxis=False,
-            textfont=dict(size=11, color='#192F47', family='Arial, sans-serif'),
+            texttemplate='%{y:.1f}', textposition='outside', cliponaxis=False,
+            textfont=dict(size=10, color=KOYU, family='Arial, sans-serif'),
             marker_line_color='#FFFFFF', marker_line_width=1.0
         )
-        eksen_stili = dict(showline=True, linecolor='#192F47', linewidth=1.5, ticks='outside',
-                           tickcolor='#192F47', tickfont=dict(size=11, color='#192F47'))
+        eksen_stili = dict(showline=True, linecolor=KOYU, linewidth=1.5, ticks='outside',
+                           tickcolor=KOYU, tickfont=dict(size=11, color=KOYU))
         fig.update_layout(
             plot_bgcolor='#FFFFFF', paper_bgcolor='#F9FCFE',
-            font=dict(family='Arial, sans-serif', size=12, color='#192F47'),
-            bargap=0.25, bargroupgap=0.12, height=360,
+            font=dict(family='Arial, sans-serif', size=12, color=KOYU),
+            bargap=0.25, bargroupgap=0.12, height=340,
             margin=dict(l=50, r=20, t=40, b=50),
             legend=dict(title_text='', orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1.0,
                         bgcolor='rgba(255,255,255,0.85)', bordercolor='#CBD5E1', borderwidth=1,
-                        font=dict(size=11, color='#192F47')),
-            xaxis=dict(title=dict(text=x_eksen_basligi, font=dict(size=12, color='#192F47')),
-                       showgrid=False, **eksen_stili),
-            yaxis=dict(title=dict(text='Süre (sn)', font=dict(size=12, color='#192F47')),
+                        font=dict(size=11, color=KOYU)),
+            xaxis=dict(title=dict(text='Koşum Sırası', font=dict(size=12, color=KOYU)), showgrid=False, **eksen_stili),
+            yaxis=dict(title=dict(text='Süre (sn)', font=dict(size=12, color=KOYU)),
                        range=[0, ust_sinir], showgrid=True, gridcolor='#CBD5E1', gridwidth=1,
-                       zeroline=True, zerolinecolor='#192F47', zerolinewidth=1.5, **eksen_stili)
+                       zeroline=True, zerolinecolor=KOYU, zerolinewidth=1.5, **eksen_stili)
         )
         st.plotly_chart(fig, use_container_width=True, key=grafik_key)
 
 
-# =========================================================================
-# GRAFİKLER: HER ŞEBEKE İÇİN (Wi-Fi, LTE) ÜST SATIR ANDROID U/D, ALT SATIR iOS U/D
-# =========================================================================
-SEBEKE_IKON = {"Wi-Fi": "📶", "LTE": "📡"}
-for sebeke in SEBEKE_SIRASI:
-    platformlar = [p for p in PLATFORM_SIRASI
-                   if not senaryo_df(tur_df, p, sebeke, "Upload").empty
-                   or not senaryo_df(tur_df, p, sebeke, "Download").empty]
-    if not platformlar:
-        continue
-    st.subheader(f"{SEBEKE_IKON[sebeke]} BiP & WhatsApp {sebeke} | {secilen_tur} Upload / Download")
-    for plat in platformlar:
-        c1, c2 = st.columns(2)
-        tek_grafik_ciz(c1, plat, sebeke, "Upload", f"chart_{plat}_{sebeke}_up")
-        tek_grafik_ciz(c2, plat, sebeke, "Download", f"chart_{plat}_{sebeke}_down")
-    st.markdown("---")
+def detay_ciz(mod_df, tanim, mod):
+    tur_df = mod_df[mod_df['Medya Türü'] == secilen_tur]
+    st.subheader(f"🔍 {secilen_tur} — Ortalama Süreler, Speed Test ve Koşum Grafikleri")
+    for sebeke in SEBEKE_SIRASI:
+        platformlar = [p for p in PLATFORM_SIRASI if p in tanim
+                       and not tur_df[(tur_df['Platform'] == p) & (tur_df['Şebeke'] == sebeke)].empty]
+        if not platformlar:
+            continue
+        st.markdown(f"### {SEBEKE_IKON[sebeke]} {sebeke}")
+        for plat in platformlar:
+            c1, c2 = st.columns(2, gap="large")
+            for kol, islem in zip((c1, c2), ISLEM_SIRASI):
+                tek_grafik_ciz(kol, tur_df, tanim[plat], plat, sebeke, islem, f"chart_{mod}_{plat}_{sebeke}_{islem}")
+        st.markdown("---")
+
+    if not tur_df.empty:
+        with st.expander(f"📊 {secilen_tur} — Tüm Koşum Verisi"):
+            tablo_df = tur_df[['Platform', 'Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre',
+                               'Speed Test (Mbps)', 'Kaynak Dosya']].rename(columns={'Süre': 'Süre (sn)'})
+            st.dataframe(tablo_df, use_container_width=True, hide_index=True)
 
 
 # =========================================================================
-# YÖNETİCİ ÖZETİ (KISA, ÖZ, NET)
+# SEKMELER
 # =========================================================================
-def yonetici_ozeti_ciz(df_tur, medya_adi):
-    karsilastirmalar = []
-    for islem in ["Upload", "Download"]:
-        for plat in PLATFORM_SIRASI:
-            for seb in SEBEKE_SIRASI:
-                s_df = senaryo_df(df_tur, plat, seb, islem)
-                bip = s_df[s_df['Uygulama'] == 'BiP']
-                wa = s_df[s_df['Uygulama'] == 'WhatsApp']
-                if bip.empty or wa.empty:
-                    continue
-                b, w = bip['Süre'].mean(), wa['Süre'].mean()
-                karsilastirmalar.append({
-                    'islem': islem, 'plat': plat, 'seb': seb, 'bip': b, 'wa': w,
-                    'bip_hizli': b < w,
-                    'oran': (max(b, w) / min(b, w) - 1) * 100 if min(b, w) > 0 else 0.0,
-                    'bip_st': bip['Speed Test (Mbps)'].dropna().iloc[0] if bip['Speed Test (Mbps)'].notna().any() else None,
-                    'wa_st': wa['Speed Test (Mbps)'].dropna().iloc[0] if wa['Speed Test (Mbps)'].notna().any() else None,
-                })
+sekmeler = st.tabs([MODLAR[m]['sekme'] for m in MODLAR])
+for sekme, mod in zip(sekmeler, MODLAR):
+    with sekme:
+        tanim = karsilastirma_tanimla(mod)
+        if not tanim:
+            st.warning("Bu karşılaştırma için gerekli klasörler bulunamadı "
+                       "(BiP vs WhatsApp: Bip_<platform>_<sürüm> + Whatsapp_<platform>; "
+                       "sürüm karşılaştırması: platform başına en az iki Bip_<platform>_<sürüm> klasörü).")
+            continue
+        gruplar = {g for t in tanim.values() for g in (t['test'], t['ref'])}
+        mod_df = full_df[full_df['Grup'].isin(gruplar) & full_df['Platform'].isin(tanim.keys())]
+        # Grup adı platformlar arasında paylaşılabileceğinden (ör. WhatsApp) platform bazında da filtrele
+        mod_df = mod_df[[g in (tanim[p]['test'], tanim[p]['ref']) for g, p in zip(mod_df['Grup'], mod_df['Platform'])]]
 
-    if not karsilastirmalar:
-        st.info("Yönetici özeti için BiP ve WhatsApp verisinin birlikte bulunduğu senaryo yok.")
-        return
-
-    toplam = len(karsilastirmalar)
-    bip_kazanc = sum(k['bip_hizli'] for k in karsilastirmalar)
-
-    def fark_str(oran):
-        # %100 ve üzeri farklar kat olarak gösterilir (ör. %1046 -> 11.5x)
-        return f"{oran / 100 + 1:.1f}x" if oran >= 100 else f"%{oran:.0f}"
-
-    def islem_satiri(islem):
-        parcalar = []
-        for k in [k for k in karsilastirmalar if k['islem'] == islem]:
-            kazanan, renk = ("BiP", "#0A6CAA") if k['bip_hizli'] else ("WhatsApp", "#1E8E3E")
-            parcalar.append(
-                f"{k['plat']} {k['seb']}: <span style='color:{renk}; font-weight:700;'>{kazanan} {fark_str(k['oran'])}</span>"
-            )
-        return " &nbsp;·&nbsp; ".join(parcalar) if parcalar else "Veri yok"
-
-    # En kritik açık: BiP'in en çok geride kaldığı senaryo
-    geride = [k for k in karsilastirmalar if not k['bip_hizli']]
-    if geride:
-        k = max(geride, key=lambda x: x['oran'])
-        odak = (f"🎯 <b>Odak:</b> {k['plat']} {k['seb']} {k['islem']} — BiP {k['bip']:.2f} sn vs "
-                f"WhatsApp {k['wa']:.2f} sn ({fark_str(k['oran'])} yavaş).")
-    else:
-        odak = "🎯 <b>Odak:</b> BiP tüm senaryolarda önde; mevcut performans korunmalı."
-
-    # Speed Test uyarısı: BiP ve WhatsApp testleri arasında hat hızı 1.5 katından fazla farklıysa
-    farkli_hat = [k for k in karsilastirmalar
-                  if k['bip_st'] and k['wa_st'] and max(k['bip_st'], k['wa_st']) / min(k['bip_st'], k['wa_st']) > 1.5]
-    if farkli_hat:
-        uyari = (f"⚠️ <b>{len(farkli_hat)} senaryoda hat hızı farkı &gt;1.5x</b> (kıyas ihtiyatla okunmalı): "
-                 + ", ".join(f"{k['plat']} {k['seb']} {'UL' if k['islem'] == 'Upload' else 'DL'} "
-                             f"({k['bip_st']:.0f}/{k['wa_st']:.0f} Mbps)" for k in farkli_hat))
-    else:
-        uyari = "✅ BiP ve WhatsApp testleri benzer hat hızlarında yapılmıştır."
-
-    ozet_html = f"""
-    <div style="background-color:#F9FCFE; border:1px solid #E2E8F0; border-radius:16px; padding:20px 26px; margin:8px 0 20px 0; font-family:Arial, sans-serif; color:#233545;">
-        <div style="color:#0D65A1; font-size:22px; font-weight:700; margin-bottom:10px;">Yönetici Özeti | {medya_adi}</div>
-        <div style="font-size:17px; margin-bottom:12px;">
-            BiP <b>{bip_kazanc}/{toplam}</b> senaryoda WhatsApp'tan daha hızlı.
-        </div>
-        <ul style="font-size:14.5px; line-height:1.7; margin:0 0 10px 18px; padding:0;">
-            <li><b>📤 Upload:</b> {islem_satiri("Upload")}</li>
-            <li><b>📥 Download:</b> {islem_satiri("Download")}</li>
-        </ul>
-        <div style="font-size:14px; line-height:1.6;">{odak}<br>{uyari}</div>
-        <div style="font-size:12px; color:#64748B; margin-top:8px;">% / x: kazananın ortalama süre avantajı · Mbps: BiP/WhatsApp Speed Test · UL: Upload, DL: Download</div>
-    </div>
-    """
-    st.markdown(ozet_html, unsafe_allow_html=True)
-
-
-yonetici_ozeti_ciz(tur_df_tum, secilen_tur)
-
-# --- TABLOLAR ---
-if not tur_df.empty:
-    with st.expander(f"📌 {secilen_tur} — Senaryo Bazlı Ortalama Süre ve Speed Test Tablosu"):
-        summary_df = tur_df.groupby(['Platform', 'Şebeke', 'İşlem Türü', 'Grup']).agg(
-            ort_sure=('Süre', 'mean'),
-            speed=('Speed Test (Mbps)', 'first'),
-            boyut=('Boyut (MB)', 'mean'),
-            kosum=('Süre', 'count')
-        ).reset_index()
-        summary_df['ort_sure'] = summary_df['ort_sure'].round(2)
-        summary_df['boyut'] = summary_df['boyut'].round(2)
-        summary_df.columns = ['Platform', 'Şebeke', 'İşlem Türü', 'Uygulama/Grup', 'Ortalama Süre (sn)',
-                              'Speed Test (Mbps)', 'Dosya Boyutu (MB)', 'Koşum Sayısı']
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
-
-    with st.expander(f"📊 {secilen_tur} — Tüm Veri Tablosu"):
-        tablo_df = tur_df[['Platform', 'Şebeke', 'İşlem Türü', 'Grup', 'Test Adı', 'Süre', 'Boyut (MB)',
-                           'Speed Test (Mbps)', 'Kaynak Dosya']].rename(columns={'Süre': 'Süre (sn)'})
-        st.dataframe(tablo_df, use_container_width=True, hide_index=True)
+        ozet = senaryo_tablosu(mod_df, tanim)
+        yonetici_ozeti_ciz(ozet, mod, tanim)
+        kirilim_ciz(ozet, mod, mod)
+        st.markdown("---")
+        detay_ciz(mod_df, tanim, mod)

@@ -1,0 +1,27 @@
+app.py
+  s_330f3b10365fc6::t_ec38aaef91aea3 155
+  s_330f3b10365fc6::t_5b3c4c7de6bcb7 92,94,99
+  s_330f3b10365fc6::t_edebe9ec2cb1ff 311-314,318-323
+  s_330f3b10365fc6::t_1cd695960cf518 65-76
+  s_330f3b10365fc6::t_439b6fe0f20d12 35-36
+  s_330f3b10365fc6::t_80825dfa801e19 277-298
+  s_330f3b10365fc6::t_a011baf60c6e00 91,93
+briefing.md
+  s_330f3b10365fc6::t_25346a86fcbeae 31,37-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9df54215fd75adbe8a17867f653d23d63030d040",
+  "prompts": {},
+  "sessions": {
+    "s_330f3b10365fc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e54652ec-9843-4241-92ef-607da0ed8f31",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "EXT02D057428 <burak.ozden@consultant.turkcell.com.tr>"
+    }
+  }
+}

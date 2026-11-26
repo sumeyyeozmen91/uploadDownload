@@ -32,6 +32,8 @@ SEBEKE_IKON = {"Wi-Fi": "📶", "LTE": "📡"}
 PLATFORM_SIRASI = ["Android", "iOS"]
 ISLEM_SIRASI = ["Upload", "Download"]
 ESIT_ESIGI_YUZDE = 1.0         # |fark| bu yüzdenin altındaysa "eşit" sayılır
+REFERANS_HIZ_MBPS = 50.0       # normalizasyon referans hızı (normalizasyon_hesabi.png)
+HIZ_ANAHTAR_KELIMELERI = ("speed", "hız", "hiz", "mbps")  # "Speed Test" sütununu bulmak için
 
 DOSYA_DESENI = re.compile(
     r"^(?P<medya>" + "|".join(sorted(MEDYA_TURU_ISIMLERI, key=len, reverse=True)) + r")"
@@ -60,6 +62,18 @@ def surum_anahtari(surum):
     return tuple(int(p) for p in surum.split('.'))
 
 
+def hiz_sutunu_bul(sutunlar, islem):
+    """Speed Test sütununu adından bulur. Birden fazla hız sütunu varsa (ör. ayrı Upload/Download
+    hızı) işlem türüne uyanı seçer; yoksa ilkini kullanır."""
+    adaylar = [c for c in sutunlar if any(a in c.lower() for a in HIZ_ANAHTAR_KELIMELERI)]
+    if len(adaylar) > 1:
+        islem_kelimeleri = ("upload", "yükleme", "gönder") if islem == "upload" else ("download", "indirme")
+        uyan = [c for c in adaylar if any(a in c.lower() for a in islem_kelimeleri)]
+        if uyan:
+            return uyan[0]
+    return adaylar[0] if adaylar else None
+
+
 def dosya_oku(dosya_yolu):
     """Tek bir Excel dosyasını okur; (DataFrame, None) veya (None, hata_nedeni) döndürür."""
     ad = os.path.splitext(os.path.basename(dosya_yolu))[0].strip().lower()
@@ -74,10 +88,15 @@ def dosya_oku(dosya_yolu):
 
     # 1. sütun: test adı, 2. sütun: süre (sn). "Dosya Boyutu" sütunu yalnızca video dosyalarında var.
     boyut_col = next((c for c in ham.columns if "boyut" in c.lower() or "size" in c.lower()), None)
+    # Speed Test sütunu: normalizasyonda "Ölçülen Hız" olarak kullanılır (panelde ayrıca gösterilmez).
+    # Dosyada tek bir Speed Test değeri var; dosyanın tüm koşumlarına aynı değer yazılır.
+    hiz_col = hiz_sutunu_bul([c for c in ham.columns[2:] if c != boyut_col], eslesme.group('islem'))
+    hiz = _sayiya_cevir(ham[hiz_col]).dropna() if hiz_col else pd.Series(dtype=float)
     df = pd.DataFrame({
         'Test Adı': ham.iloc[:, 0],
         'Süre': _sayiya_cevir(ham.iloc[:, 1]).round(2),
         'Boyut (MB)': _sayiya_cevir(ham[boyut_col]) if boyut_col else float('nan'),
+        'Hız (Mbps)': float(hiz.iloc[0]) if not hiz.empty else float('nan'),
     }).dropna(subset=['Test Adı', 'Süre'])
     if df.empty:
         return None, "geçerli süre değeri yok"
@@ -133,7 +152,7 @@ def veri_yukle(kok, imza, okuma_surumu):
 
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
 imza = tuple(sorted((f, os.path.getmtime(f)) for f in glob.glob(os.path.join(script_dir, "*", "*.xlsx"))))
-OKUMA_SURUMU = 2  # dosya_oku() sütunları değişirse artır
+OKUMA_SURUMU = 3  # dosya_oku() sütunları değişirse artır
 full_df, atlanan_dosyalar = veri_yukle(script_dir, imza, OKUMA_SURUMU)
 
 if full_df.empty:
@@ -255,6 +274,28 @@ def kpi_kart(baslik, sure, renk):
     )
 
 
+def kart_satiri(degerler, sure_etiketi, fark_etiketi):
+    """İki grup kartı + fark kartı. degerler: {grup: süre veya None}."""
+    kolonlar = st.columns([2, 2, 1.2])
+    for kol, grup in zip(kolonlar[:2], k['sira']):
+        d = degerler[grup]
+        kol.markdown(kpi_kart(f"{grup} · {sure_etiketi}", sure_str(d) if d is not None else "-",
+                              k['renk'][grup]), unsafe_allow_html=True)
+    test, ref = degerler[k['test']], degerler[k['ref']]
+    if test is not None and ref:
+        fark = (test - ref) / ref * 100
+        renk = "#6B7280" if abs(fark) < ESIT_ESIGI_YUZDE else ("#1E8E3E" if fark < 0 else "#C0392B")
+        metin = f"{fark:+.0f}%"
+    else:
+        renk, metin = "#6B7280", "-"
+    kolonlar[2].markdown(
+        f"<div style='background:#F9FCFE; border-radius:8px; padding:8px 10px; margin-bottom:6px; "
+        f"text-align:center; font-family:Arial,sans-serif;'>"
+        f"<div style='font-size:12px; color:#64748B;'>{fark_etiketi} ({k['test']})</div>"
+        f"<div style='font-size:22px; font-weight:700; color:{renk}; line-height:1.3;'>{metin}</div></div>",
+        unsafe_allow_html=True)
+
+
 def tek_grafik_ciz(container, df, sebeke_adi, islem_adi, grafik_key):
     sub_df = df[(df['Şebeke'] == sebeke_adi) & (df['İşlem Türü'] == islem_adi)].copy()
     if sub_df.empty:
@@ -267,26 +308,19 @@ def tek_grafik_ciz(container, df, sebeke_adi, islem_adi, grafik_key):
             unsafe_allow_html=True
         )
 
-        # --- ORTALAMA SÜRE KARTLARI ---
-        ortalamalar = {}
+        # --- ORTALAMA SÜRE KARTLARI + NORMALİZE KARTLAR ---
+        # Normalize Süre = Ölçülen Süre × (Ölçülen Hız / Referans Hız)
+        #   Ölçülen Süre: Ort. Upload/Download · Ölçülen Hız: Speed Test ortalaması · Referans Hız: 50 Mbps
+        ortalamalar, normalize = {}, {}
         for grup in k['sira']:
             g = sub_df[sub_df['Grup'] == grup]
             ortalamalar[grup] = g['Süre'].mean() if not g.empty else None
-        test_ort, ref_ort = ortalamalar[k['test']], ortalamalar[k['ref']]
+            hiz = g['Hız (Mbps)'].mean() if not g.empty else float('nan')
+            normalize[grup] = (ortalamalar[grup] * hiz / REFERANS_HIZ_MBPS
+                               if ortalamalar[grup] is not None and pd.notna(hiz) and hiz > 0 else None)
 
-        kolonlar = st.columns([2, 2, 1.2])
-        for kol, grup in zip(kolonlar[:2], k['sira']):
-            ort = ortalamalar[grup]
-            kol.markdown(kpi_kart(f"{grup} · Ort. {islem_adi}", sure_str(ort) if ort is not None else "-",
-                                  k['renk'][grup]), unsafe_allow_html=True)
-        if test_ort is not None and ref_ort:
-            fark = (test_ort - ref_ort) / ref_ort * 100
-            renk = "#6B7280" if abs(fark) < ESIT_ESIGI_YUZDE else ("#1E8E3E" if fark < 0 else "#C0392B")
-            kolonlar[2].markdown(
-                f"<div style='background:#F9FCFE; border-radius:8px; padding:8px 10px; text-align:center; "
-                f"font-family:Arial,sans-serif;'><div style='font-size:12px; color:#64748B;'>Fark ({k['test']})</div>"
-                f"<div style='font-size:22px; font-weight:700; color:{renk}; line-height:1.3;'>{fark:+.0f}%</div></div>",
-                unsafe_allow_html=True)
+        kart_satiri(ortalamalar, f"Ort. {islem_adi}", "Fark")
+        kart_satiri(normalize, f"Normalize Ort. {islem_adi}", "Normalize Fark")
 
         # --- GRAFİK ---
         sub_df = sub_df.sort_values(by=['Koşum Sırası', 'Grup'])

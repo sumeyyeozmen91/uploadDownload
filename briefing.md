@@ -28,10 +28,25 @@ Bip_iOS_5.6.41 ile Bip_iOS_5.7.36 için dropdown yap seçebileyim. Bu alanda Bip
 
 Lte ve wifi şebekelerinde dosyalar var dikkat et şebekeye
 Dosya boyutu olanların dosya boyutunu da ekle
-Ayrıca Speed Test bilgilerini de streamlit'te yukarıda ortalama sürelerin oldugu yere EKLEME 
+Ayrıca Speed Test bilgilerini de streamlit'te yukarıda ortalama sürelerin oldugu yere EKLEME YAPMA
 buna göre streamlit'i olustur
 
 Ayrıca yönetici özeti her sayfanın altında kısa öz net olsun
+
+
+ÖNEMLİ:
+
+Streamlit'de Ort. Upload, Ort. Download, Fark bilgilerinin altına
+Normalize Ort. Upload, Normalize Ort. Download, Normalize Fark bilgisi yaz.
+Bu işlemi karşılaştırma yaptıgın yüklerde hem upload hem download için yaz.
+
+Bu hesaplamayı normalizasyon_hesabi.png dosyasından ögren.
+Referans Hız değeri sabit 50.
+Ölçülen Hız değeri Speed Test çıktısı.
+Ölçülen Süre değeri Ort. Upload veya Ort. Download değeri olacak.
+
+
+
 
 
 
